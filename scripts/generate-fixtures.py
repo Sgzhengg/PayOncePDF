@@ -509,6 +509,12 @@ def generate(out: Path, huge: bool, big: bool) -> dict:
         "error_codes": ERROR_CODES,
         "notes": {
             "ENCRYPTED_PDF_CMD": ENCRYPTED_PDF_CMD,
+            "ROTATED_PDF_CMD": "qpdf --rotate=+90:1 page_1.pdf text_rotated90.pdf",
+            "rotated_pdf": (
+                "text_rotated90.pdf 由 qpdf 对 page_1.pdf 旋转 90° 生成（非 stdlib 产物，"
+                "不列入 OWNED_FILES，重跑本脚本不会删除）。用于 F18 旋转页框选 / F19 "
+                "按位置替换的坐标变换回归（见 docs/test-report.md §32）。"
+            ),
             "encrypted_pdf": (
                 "encrypted.placeholder.pdf 不是真加密文件。stdlib 不实现 PDF 标准加密；"
                 "请用上面的 qpdf 命令人工生成已知密码的加密 PDF（PRD 14.1）。"

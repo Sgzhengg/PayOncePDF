@@ -13,7 +13,7 @@
 //!
 //! 所有输出都写到调用方给的临时路径，由上层原子提交；绝不原地覆盖输入文件。
 
-use crate::engine::{pdf, qpdf, JobCtx};
+use crate::engine::{geometry, pdf, qpdf, JobCtx};
 use crate::error::{AppError, AppResult};
 use lopdf::{dictionary, Dictionary, Document, Object, ObjectId, Stream};
 use pdfium_render::prelude::*;
@@ -172,6 +172,45 @@ fn unrotated_copy(path: &Path, out_tmp: &Path) -> AppResult<Option<PathBuf>> {
     let copy = out_tmp.with_extension("unrotated.pdf");
     std::fs::write(&copy, bytes).map_err(AppError::from)?;
     Ok(Some(copy))
+}
+
+/// 把原文件每页的 /Rotate 写回去旋转副本上（F19 保存后恢复朝向）。
+/// 只改 /Rotate 字典项，不碰内容流/文字层；页数不一致则明确拒绝。
+fn restore_rotations(original: &Path, output: &Path) -> AppResult<()> {
+    let src = Document::load(original).map_err(lopdf_error)?;
+    let src_pages = src.get_pages();
+    let mut rotations: Vec<(u32, i64)> = Vec::new();
+    for (no, id) in &src_pages {
+        let r = src
+            .get_object(*id)
+            .ok()
+            .and_then(|o| o.as_dict().ok())
+            .and_then(|d| d.get(b"Rotate").ok())
+            .and_then(|o| o.as_i64().ok())
+            .unwrap_or(0);
+        rotations.push((*no, r));
+    }
+    let mut dst = Document::load(output).map_err(lopdf_error)?;
+    let dst_pages = dst.get_pages();
+    if dst_pages.len() != src_pages.len() {
+        return Err(AppError::internal(
+            "恢复页面旋转失败：输出页数与原文件不一致，已中止且不交付。",
+        ));
+    }
+    for (no, r) in rotations {
+        if r == 0 {
+            continue;
+        }
+        if let Some(id) = dst_pages.get(&no) {
+            dst.get_object_mut(*id)
+                .map_err(lopdf_error)?
+                .as_dict_mut()
+                .map_err(lopdf_error)?
+                .set("Rotate", r);
+        }
+    }
+    let bytes = pdf::save_to_bytes(&mut dst)?;
+    std::fs::write(output, bytes).map_err(AppError::from)
 }
 
 /// 无论查找成功、失败还是提前返回，都清理临时副本。
@@ -523,7 +562,7 @@ fn pick_chars_by_rect(boxes: &[(f32, f32, f32, f32)], sel: (f32, f32, f32, f32))
 ///
 /// 与 F10 的本质区别：不做文本查找，因此同页出现多次的相同文字也不会被一起改掉。
 /// 安全闸门（任一不满足即报错、不写文件）：
-/// - 页面 /Rotate 必须为 0（否则字符坐标与渲染图不一致，F18 已同样禁用）；
+/// - 旋转页选区先由显示坐标逆变换回内容流坐标，再与 PDFium 字符框比对（见下）；
 /// - 文字层字符序列必须与内容流文本对象序列逐字一致，否则字符下标无法映射到对象；
 /// - 选区必须落在同一行内的连续字符上（跨行合并会破坏排版）。
 #[allow(clippy::too_many_arguments)]
@@ -538,7 +577,31 @@ pub fn replace_text_at_rect(
     expected: Option<&str>,
     out_tmp: &Path,
 ) -> AppResult<RectEditOutcome> {
-    let doc = pdfium.load_pdf_from_file(path, password).map_err(pdf_error)?;
+    // 旋转页处理（2026-11-21）：PDFium 在 /Rotate!=0 的页上按「视觉顺序」返回字符，
+    // 与 collect_runs 的内容流顺序不一致，F19 的一致性闸门会拒绝（防改错对象）。
+    // 故用 with_unrotated 在临时副本上把 /Rotate 置 0 —— 此时字符顺序与字符框都回到
+    // 内容流坐标系，选区逆变换后正好匹配；保存后再把原 /Rotate 写回输出文件。
+    // with_unrotated 保证任何提前返回都清理副本；不落盘到用户目录、不联网。
+    with_unrotated(path, out_tmp, |effective| replace_text_at_rect_inner(
+        ctx, pdfium, path, password, effective, page_1based, rect, replace, expected, out_tmp,
+    ))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn replace_text_at_rect_inner(
+    ctx: &JobCtx<'_>,
+    pdfium: &Pdfium,
+    path: &Path,
+    password: Option<&str>,
+    effective: &Path,
+    page_1based: u32,
+    mut rect: (f32, f32, f32, f32),
+    replace: &str,
+    expected: Option<&str>,
+    out_tmp: &Path,
+) -> AppResult<RectEditOutcome> {
+    let was_unrotated = effective != path;
+    let doc = pdfium.load_pdf_from_file(effective, password).map_err(pdf_error)?;
     let total = doc.pages().len() as u32;
     if total == 0 {
         return Err(AppError::parse("文档没有页面"));
@@ -550,17 +613,24 @@ pub fn replace_text_at_rect(
         .get((page_no - 1) as PdfPageIndex)
         .map_err(pdf_error)?;
 
-    let rotation = match page.rotation() {
-        Ok(PdfPageRenderRotation::Degrees90) => 90,
-        Ok(PdfPageRenderRotation::Degrees180) => 180,
-        Ok(PdfPageRenderRotation::Degrees270) => 270,
-        _ => 0,
-    };
-    if rotation != 0 {
-        return Err(AppError::internal(format!(
-            "第 {} 页有 /Rotate {}，字符坐标与渲染图不一致，按位置替换已拒绝；请先用「页面」工具把旋转归零，或改用「按文本替换」。",
-            page_no, rotation
-        )));
+    // 前端给的 rect 是「屏幕→显示 pt」（与渲染图同坐标系）；PDFium 字符框是内容流
+    // 坐标。旋转页先把选区逆变换回内容流坐标，再在去旋转副本上定位。
+    // 显示尺寸从原文件读（副本已去旋转，其 width/height 是内容流尺寸）。
+    if was_unrotated {
+        let original = pdfium.load_pdf_from_file(path, password).map_err(pdf_error)?;
+        let orig_page = original
+            .pages()
+            .get((page_no - 1) as PdfPageIndex)
+            .map_err(pdf_error)?;
+        let rotation = match orig_page.rotation() {
+            Ok(PdfPageRenderRotation::Degrees90) => 90,
+            Ok(PdfPageRenderRotation::Degrees180) => 180,
+            Ok(PdfPageRenderRotation::Degrees270) => 270,
+            _ => 0,
+        };
+        let rot = geometry::PageRotation::from_degrees(rotation);
+        let display_size = geometry::display_size(rot, page.width().value, page.height().value);
+        rect = geometry::display_to_content(rot, rect, display_size.0, display_size.1);
     }
 
     // 1) 取字符与包围盒，按矩形挑出选中字符
@@ -821,6 +891,14 @@ pub fn replace_text_at_rect(
     ctx.tick(2, 2, "写出并校验".to_string())?;
     let bytes = doc.save_to_bytes().map_err(pdf_error)?;
     std::fs::write(out_tmp, bytes).map_err(AppError::from)?;
+
+    // 旋转页：把原 /Rotate 写回输出，保证交付文件与用户看到的页面朝向一致。
+    if was_unrotated {
+        if let Err(e) = restore_rotations(path, out_tmp) {
+            let _ = std::fs::remove_file(out_tmp);
+            return Err(e);
+        }
+    }
 
     // 4) 写后读回：新文字必须真的进了文本层，且原文出现次数恰好减少 1
     if let Err(e) = verify_rect_edit(pdfium, out_tmp, page_no, &old_text, replace, before_count) {
@@ -2359,6 +2437,127 @@ mod tests {
         assert!(after.contains("Draft two"), "第二处必须保持原样：{:?}", after);
         assert_eq!(std::fs::read(&input).unwrap(), duplicate_pdf_bytes(), "原文件不得被修改");
         assert!(qpdf_check(&output), "按位置替换输出未通过 qpdf --check");
+    }
+
+    /// 造一份 /Rotate 90 的真实 PDF：在 duplicate 基础上给页面加 Rotate。
+    fn rotated_pdf_bytes(degrees: i64) -> Vec<u8> {
+        let mut doc = Document::load_mem(&duplicate_pdf_bytes()).unwrap();
+        let pages = doc.get_pages();
+        for (_, id) in &pages {
+            doc.get_object_mut(*id)
+                .unwrap()
+                .as_dict_mut()
+                .unwrap()
+                .set("Rotate", degrees);
+        }
+        pdf::save_to_bytes(&mut doc).unwrap()
+    }
+
+    /// 端到端：旋转页上按「用户看到的显示坐标」框选，F19 逆变换后必须改对原文。
+    /// 四个角度都测；这是 2026-11-21 修复的核心回归（以前旋转页直接被拒）。
+    #[test]
+    fn e2e_rect_edit_on_rotated_pages() {
+        let pdfium = test_pdfium();
+        for deg in [90i64, 180, 270] {
+            let (input, output) = temp_case(&format!("rect_rot_{deg}"));
+            std::fs::write(&input, rotated_pdf_bytes(deg)).unwrap();
+
+            // 1) 模拟前端：用 F18 布局（显示坐标）取第一个 "Draft" 的选区。
+            let dir = crate::engine::render::PdfDoc::open(pdfium, &input, None).unwrap();
+            let layout = dir.page_text_layout(1).unwrap();
+            assert_eq!(layout.rotation, deg as u32);
+            assert!(layout.has_text_layer, "旋转页应可框选");
+            // 旋转页 PDFium 字符顺序可能按视觉重排（如 "Drafttwo / Draftone"），
+            // 不假设顺序，只确认两处 Draft 都在；框选按坐标定位，不依赖读取顺序。
+            assert_eq!(compact(&layout.text).matches("Draft").count(), 2);
+            let needle: Vec<char> = "Draft".chars().collect();
+            let chars: Vec<char> = layout.text.chars().collect();
+            let start = (0..=chars.len().saturating_sub(needle.len()))
+                .find(|&i| chars[i..i + needle.len()] == needle[..])
+                .unwrap();
+            let picked = &layout.chars[start..start + needle.len()];
+            let mut rect = (
+                picked[0].left, picked[0].bottom, picked[0].right, picked[0].top,
+            );
+            for c in &picked[1..] {
+                rect.0 = rect.0.min(c.left);
+                rect.1 = rect.1.min(c.bottom);
+                rect.2 = rect.2.max(c.right);
+                rect.3 = rect.3.max(c.top);
+            }
+            drop(dir);
+
+            // 2) 用户拖出的显示坐标选区交给 F19（内部逆变换回内容流坐标）。
+            let cancel = AtomicBool::new(false);
+            let ctx = offline_ctx(&cancel);
+            let out = replace_text_at_rect(
+                &ctx, pdfium, &input, None, 1, rect, "Final", Some("Draft"), &output,
+            )
+            .unwrap_or_else(|e| panic!("/Rotate {} 按位置替换失败: {}", deg, e.message));
+            assert_eq!(out.old_text, "Draft", "deg={}", deg);
+            assert_eq!(out.selected_chars, 5);
+
+            // 3) 读回：只改第一处，第二处保留，原文件未动，输出结构合法。
+            // 读回必须用内容流顺序（collect_runs）：旋转页 page.text().all() 会返回空。
+            let od = pdfium.load_pdf_from_file(&output, None).unwrap();
+            let op = od.pages().get(0).unwrap();
+            assert_eq!(op.rotation().unwrap(), match deg { 90 => PdfPageRenderRotation::Degrees90,
+                180 => PdfPageRenderRotation::Degrees180, _ => PdfPageRenderRotation::Degrees270 });
+            let (_, out_chars, _) = collect_runs(&op);
+            let flat: String = out_chars.iter().collect();
+            assert_eq!(compact(&flat).matches("Draft").count(), 1, "deg={} 文本={:?}", deg, flat);
+            assert!(compact(&flat).contains("Final"), "deg={} 文本={:?}", deg, flat);
+            drop(od);
+            assert_eq!(std::fs::read(&input).unwrap(), rotated_pdf_bytes(deg));
+            assert!(qpdf_check(&output), "deg={} 输出未通过 qpdf --check", deg);
+        }
+    }
+
+    /// 用 qpdf 真实旋转的 fixture 验证 F18+F19：不是只在 lopdf 手工构造页上通过。
+    #[test]
+    fn e2e_rect_edit_on_qpdf_rotated_fixture() {
+        let fixture = PathBuf::from(concat!(
+            env!("CARGO_MANIFEST_DIR"), "/../tests/fixtures/text_rotated90.pdf"
+        ));
+        if !fixture.exists() {
+            eprintln!("跳过：缺 text_rotated90.pdf");
+            return;
+        }
+        let pdfium = test_pdfium();
+        // F18：旋转页应有文字层且字符框在显示尺寸内
+        let layout_doc = crate::engine::render::PdfDoc::open(pdfium, &fixture, None).unwrap();
+        let layout = layout_doc.page_text_layout(1).unwrap();
+        assert_eq!(layout.rotation, 90);
+        assert!(layout.has_text_layer);
+        assert!(!layout.text.is_empty());
+        assert!(layout.chars.iter().all(|c| c.left >= -0.5 && c.right <= layout.page_width_pt + 0.5));
+        drop(layout_doc);
+
+        // F19：框选第一个非空白可见词，走完整替换链路
+        let (_, output) = temp_case("rect_qpdf_rot");
+        let word_start = layout.text.char_indices()
+            .find(|(_, ch)| ch.is_ascii_alphanumeric())
+            .map(|(i, _)| i).unwrap();
+        let word: String = layout.text[word_start..].chars()
+            .take_while(|c| c.is_ascii_alphanumeric()).collect();
+        assert!(!word.is_empty());
+        let picked = &layout.chars[word_start..word_start + word.chars().count()];
+        let mut rect = (picked[0].left, picked[0].bottom, picked[0].right, picked[0].top);
+        for c in &picked[1..] {
+            rect.0 = rect.0.min(c.left); rect.1 = rect.1.min(c.bottom);
+            rect.2 = rect.2.max(c.right); rect.3 = rect.3.max(c.top);
+        }
+        let cancel = AtomicBool::new(false);
+        let ctx = offline_ctx(&cancel);
+        let out = replace_text_at_rect(
+            &ctx, pdfium, &fixture, None, 1, rect, "OK", Some(&word), &output,
+        ).unwrap_or_else(|e| panic!("真实旋转 fixture 替换失败: {}", e.message));
+        assert_eq!(out.old_text.chars().count(), word.chars().count());
+        // 输出保留旋转
+        let od = pdfium.load_pdf_from_file(&output, None).unwrap();
+        assert_eq!(od.pages().get(0).unwrap().rotation().unwrap(), PdfPageRenderRotation::Degrees90);
+        drop(od);
+        assert!(qpdf_check(&output));
     }
 
     /// F19 安全闸门：框空白 / 与预览文字不一致 / 跨行，都必须报错且不写半成品。

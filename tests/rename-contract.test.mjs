@@ -149,9 +149,13 @@ test('F18 画布框选联动：后端命令、坐标口径、前端联动与唯�
   assert.match(read('src-tauri/src/commands/viewer.rs'), /pub fn get_page_text_layout/);
   assert.match(read('src-tauri/src/engine/render.rs'), /pub fn page_text_layout/);
   assert.match(read('src-tauri/src/engine/render.rs'), /pub const MAX_LAYOUT_CHARS: usize = 60_000/);
-  // 旋转页必须显式禁用，不能把内容流坐标当渲染图坐标回传
-  assert.match(read('src-tauri/src/engine/render.rs'), /if rotation != 0/);
-  assert.match(read('src-tauri/src/engine/render.rs'), /unsupported_reason/);
+  // 2026-11-21 起旋转页可框选：字符框变换到显示坐标后再回传（不禁用）
+  const render = read('src-tauri/src/engine/render.rs');
+  assert.match(render, /geometry::content_to_display/);
+  assert.match(render, /geometry::display_size/);
+  assert.match(read('src-tauri/src/engine/geometry.rs'), /pub fn content_to_display/);
+  assert.match(read('src-tauri/src/engine/geometry.rs'), /pub fn display_to_content/);
+  assert.match(render, /unsupported_reason/);
   assert.match(read('src/lib/backend.ts'), /getPageTextLayout: "get_page_text_layout"/);
   assert.match(read('src/lib/types.ts'), /hasTextLayer: boolean/);
   assert.match(read('src/lib/types.ts'), /unsupportedReason\?: string/);
@@ -177,7 +181,10 @@ test('F19 按矩形精确替换：命令注册、坐标闸门、前端联动与�
   assert.match(engine, /pub fn replace_text_at_rect/);
   // 坐标口径：PDF pt、左下原点，与 F18 同一套字符框
   assert.match(engine, /fn pick_chars_by_rect/);
-  assert.match(engine, /if rotation != 0/);
+  // 旋转页：选区逆变换回内容流坐标 + 去旋转副本定位 + 写回 /Rotate
+  assert.match(engine, /geometry::display_to_content/);
+  assert.match(engine, /with_unrotated\(path, out_tmp/);
+  assert.match(engine, /fn restore_rotations/);
   // 字符层顺序必须与内容流文本对象一致，否则拒绝（不猜对象）
   assert.match(engine, /run_chars != page_chars/);
   // 跨行必须拒绝，不能把两行挤成一行

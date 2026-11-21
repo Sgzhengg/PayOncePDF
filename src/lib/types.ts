@@ -397,9 +397,9 @@ export interface PageTextLayout {
   text: string;
   /** 超过 6 万字符：chars/text 为空，必须禁用框选。 */
   truncated: boolean;
-  /** 扫描件、纯图片页或旋转页为 false。 */
+  /** 扫描件、纯图片页或超 6 万字符时为 false；旋转页字符框已变换到显示坐标，可为 true。 */
   hasTextLayer: boolean;
-  /** 页面 /Rotate（0 / 90 / 180 / 270）；非 0 必须禁用框选。 */
+  /** 页面 /Rotate（0 / 90 / 180 / 270）；非 0 时字符框已变换到显示坐标系。 */
   rotation: number;
   /** 不可框选的明确原因；可框选时字段不存在。 */
   unsupportedReason?: string;

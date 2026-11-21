@@ -4,7 +4,7 @@
 //! 找不到返回 E2002。动态库进程内只加载一次（`Pdfium::new` 内部是全局 OnceCell），
 //! 用 `OnceLock` + `Mutex` 保护初始化，避免并发重复 bind 报错。
 
-use crate::engine::sidecar;
+use crate::engine::{geometry, sidecar};
 use crate::error::{AppError, AppResult};
 use image::codecs::jpeg::JpegEncoder;
 use image::{DynamicImage, ExtendedColorType, ImageFormat, RgbImage};
@@ -197,9 +197,10 @@ impl<'a> PdfDoc<'a> {
 
     /// F18：读取单页字符级文字布局（PDFium `FPDFText_GetCharBox`）。
     ///
-    /// 旋转页（`/Rotate != 0`）一律返回 `hasTextLayer=false`：PDFium 的字符坐标是
-    /// 内容流坐标，而 F17 渲染图是旋转后的显示坐标，两者求交会错位。这里**不生成
-    /// 临时「去旋转」副本**，保持 F17/F18 查询不落盘的隐私口径。
+    /// 旋转页（`/Rotate != 0`）支持框选：PDFium 的字符框是内容流坐标，渲染图是
+    /// 旋转后的显示坐标；这里用 `geometry::content_to_display()` 把字符框变换到
+    /// 显示坐标系再回传，前端「屏幕→显示 pt」的求交口径不变。纯内存查询，
+    /// 不生成临时「去旋转」副本，保持 F17/F18 不落盘的隐私口径。
     pub fn page_text_layout(&self, page_1based: u32) -> AppResult<PageTextLayout> {
         let pages = self.page_count();
         if pages == 0 {
@@ -231,15 +232,7 @@ impl<'a> PdfDoc<'a> {
             rotation,
             unsupported_reason: Some(reason.to_string()),
         };
-        if rotation != 0 {
-            return Ok(empty(
-                false,
-                &format!(
-                    "该页有 /Rotate {}，字符坐标与渲染图不一致，暂不支持框选；请先用「页面」工具把旋转归零",
-                    rotation
-                ),
-            ));
-        }
+        let rot = geometry::PageRotation::from_degrees(rotation);
         let text = page
             .text()
             .map_err(|e| AppError::parse(format!("第 {} 页文字层读取失败：{}", page_no, e)))?;
@@ -257,6 +250,9 @@ impl<'a> PdfDoc<'a> {
             ));
         }
 
+        // 字符框是内容流坐标；旋转页要用内容流尺寸把它变换到显示坐标系。
+        // width/height 是显示尺寸（实测 90/270 时已交换），故先反推内容流尺寸。
+        let (content_w, content_h) = geometry::display_size(rot, width, height);
         let collection = text.chars();
         let mut chars: Vec<TextCharBox> = Vec::with_capacity(count);
         let mut full = String::with_capacity(count * 2);
@@ -267,13 +263,24 @@ impl<'a> PdfDoc<'a> {
                 .unwrap_or_else(|_| PdfRect::zero());
             let ch = c.unicode_char().unwrap_or('\u{FFFD}');
             full.push(ch);
+            let (left, bottom, right, top) = geometry::content_to_display(
+                rot,
+                (
+                    bounds.left().value,
+                    bounds.bottom().value,
+                    bounds.right().value,
+                    bounds.top().value,
+                ),
+                content_w,
+                content_h,
+            );
             chars.push(TextCharBox {
                 index: c.index() as u32,
                 ch: ch.to_string(),
-                left: bounds.left().value,
-                bottom: bounds.bottom().value,
-                right: bounds.right().value,
-                top: bounds.top().value,
+                left,
+                bottom,
+                right,
+                top,
             });
         }
         let has_text_layer = !chars.is_empty();
@@ -286,7 +293,7 @@ impl<'a> PdfDoc<'a> {
             text: full,
             truncated: false,
             has_text_layer,
-            rotation: 0,
+            rotation,
             unsupported_reason: None,
         })
     }
@@ -472,23 +479,32 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn blank_page_and_rotated_page_have_no_text_layer() {
+    fn blank_page_has_no_text_layer() {
         let blank = layout_of(&text_pdf_bytes("", 0), 1, "blank");
         assert!(!blank.has_text_layer);
         assert!(blank.chars.is_empty());
         assert!(!blank.truncated);
+    }
 
-        // 旋转页：即使 PDFium 仍能取出字符，坐标也是内容流坐标，与旋转后的
-        // 渲染图不一致，必须显式禁用而不是回传会错位的框选坐标。
-        let rotated = layout_of(&text_pdf_bytes("Hello World", 90), 1, "rotated");
-        assert!(!rotated.has_text_layer, "旋转页不应回传框选坐标");
-        assert!(rotated.chars.is_empty());
-        assert_eq!(rotated.rotation, 90);
-        assert!(rotated
-            .unsupported_reason
-            .as_deref()
-            .unwrap_or("")
-            .contains("/Rotate 90"));
+    /// 2026-11-21：旋转页框选支持。字符框必须落在显示尺寸内（595×842 内容流
+    /// 旋转 90° 后是 842×595），且文本顺序不变，前端才能正确求交与拼接。
+    #[test]
+    fn rotated_page_returns_display_space_char_boxes() {
+        for deg in [0i64, 90, 180, 270] {
+            let out = layout_of(&text_pdf_bytes("Hello World", deg), 1, &format!("r{deg}"));
+            assert_eq!(out.rotation, deg as u32);
+            assert!(out.has_text_layer, "/Rotate {} 应可框选", deg);
+            assert_eq!(out.text.replace(' ', ""), "HelloWorld");
+            assert!(out.unsupported_reason.is_none());
+            // 90/270 显示尺寸交换，字符框必须落在新坐标系内。
+            let (dw, dh) = if deg % 180 == 0 { (595.0, 842.0) } else { (842.0, 595.0) };
+            assert_eq!(out.page_width_pt, dw);
+            assert_eq!(out.page_height_pt, dh);
+            for c in &out.chars {
+                assert!(c.left >= -0.5 && c.right <= dw + 0.5, "deg={} {:?}", deg, c);
+                assert!(c.bottom >= -0.5 && c.top <= dh + 0.5, "deg={} {:?}", deg, c);
+            }
+        }
     }
 
     #[test]
