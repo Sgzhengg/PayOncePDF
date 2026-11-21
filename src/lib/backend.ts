@@ -7,6 +7,9 @@ import type {
   BookmarkQuery,
   BookmarkRequest,
   CompressRequest,
+  CompareExportRequest,
+  CompareQuery,
+  CompareReport,
   DecorateRequest,
   EditTextRequest,
   ExportRequest,
@@ -58,6 +61,8 @@ export const COMMANDS = {
   redact: "redact_pdf",
   listBookmarks: "list_bookmarks",
   manageBookmarks: "manage_bookmarks",
+  compareDocuments: "compare_documents",
+  exportCompareReport: "export_compare_report",
   textToPdf: "text_to_pdf",
   share: "share_file",
   listOcrLanguages: "list_ocr_languages",
@@ -96,6 +101,7 @@ export type CommandPayload =
   | FormRequest
   | RedactRequest
   | BookmarkRequest
+  | CompareExportRequest
   | TextToPdfRequest
   | ShareRequest;
 
@@ -242,6 +248,17 @@ const PREVIEW_LANGS: OcrLanguageInfo[] = [
 export async function listBookmarks(query: BookmarkQuery): Promise<BookmarkEntry[]> {
   if (!IS_TAURI) return [];
   return tauriInvoke<BookmarkEntry[]>(COMMANDS.listBookmarks, query);
+}
+
+/// F20 文档比对（只读查询）。预览模式返回 null，绝不伪造比对结果。
+export async function compareDocuments(query: CompareQuery): Promise<CompareReport | null> {
+  if (!IS_TAURI) return null;
+  return tauriInvoke<CompareReport>(COMMANDS.compareDocuments, query);
+}
+
+/// F20 导出对比报告（走任务队列，占导出授权）。
+export async function exportCompareReport(payload: CompareExportRequest): Promise<CommandResult> {
+  return invokeCommand(COMMANDS.exportCompareReport, payload);
 }
 
 export async function listOcrLanguages(): Promise<OcrLanguageInfo[]> {

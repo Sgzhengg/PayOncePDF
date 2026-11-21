@@ -44,6 +44,7 @@
 | 高亮 / 下划线 / 删除线 / 波浪线 | ✅ | **F11** 标准注解字典 + QuadPoints | 补齐 |
 | 便签 / 评论 / 图章 / 绘图 / 自定义形状 | ✅ | ⚠️ 仅「便签备注」一种 | 部分补齐 |
 | 书签查看 / 新建 / 重命名 / 删除 | ✅ | **F15** `/Outlines` 重建，多级书签 set/add/rename/delete + 层级树列表 | 补齐（层级由 spec 的 `>` 决定，无拖放换父级） |
+| 文档比对（Compare Files） | ✅ | **F20** 纯文字层增删改 diff + 页码 + 报告导出；只读查询 | 部分补齐：不识别图片/版式/页序差异，扫描件需先 OCR |
 | 创建可填写表单字段 | ✅ | **F15** AcroForm 文本域（单行/多行/必填，保留既有表单） | **部分补齐**：无复选框/单选/下拉/计算脚本/签名域 |
 | 填写表单 / 扁平化 | ✅ | ✅ F6 | 持平 |
 | 电子签名（鼠标/键盘/图片） | ✅ | ⚠️ 仅图片叠加 | 部分持平 |
@@ -133,6 +134,7 @@
 | F15 表单创建 | `engine/objects.rs::create_form` / `commands/objects.rs::create_form_pdf` | 仅文本域；`/NeedAppearances true` 由阅读器生成外观；不覆盖既有表单 |
 | F15 脱敏 | `objects.rs::redact` / `redact_pdf` | 真删除文字对象 + 黑框；只处理可选中文本；扫描件需先 OCR |
 | F15 书签 | `objects.rs::{list_bookmarks,manage_bookmarks}` / 2 个命令 | 多级书签（行首 `>` 表层级）；无拖放换父级；页面增删后不自动跟随页号 |
+| F20 文档比对 | `compare.rs::{compare,diff_text}` / `commands/compare.rs` 2 个命令 | 纯文字层 LCS diff（增删改/页码/敏感度/页面范围）；只读查询不占授权；不识别图片版式 |
 | F16 文本转 PDF | `engine/more.rs::text_to_pdf` / `commands/more.rs::text_to_pdf` | TXT/CSV/HTML 纯文本排版；中文用系统 CJK 字体；**不是 Office 高保真转换** |
 | F16 中文水印 | `more.rs::cjk_watermark` + `decorate_pdf` 分支 | 水平居中灰字，无旋转/独立透明度；页眉页脚仍限 WinAnsi |
 | F16 打印/邮件 | `commands/more.rs::share_file` | 系统默认程序；mailto 附件需手动添加 |

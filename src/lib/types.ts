@@ -16,6 +16,7 @@ export type ToolId =
   | "decorate"
   | "export"
   | "objects"
+  | "compare"
   | "create"
   | "share";
 
@@ -313,6 +314,47 @@ export interface BookmarkRequest {
   spec: string;
   target: string;
   newTitle: string;
+}
+
+// ---- F20：文档比对（纯文字层，只读） ----
+
+export interface CompareSensitivity {
+  ignoreCase: boolean;
+  ignoreWhitespace: boolean;
+  ignorePunctuation: boolean;
+}
+
+export interface CompareQuery {
+  oldFile: string;
+  newFile: string;
+  oldPassword?: string;
+  newPassword?: string;
+  pages?: string;
+  sensitivity?: CompareSensitivity;
+}
+
+export interface CompareDifference {
+  kind: "added" | "removed" | "changed";
+  page: number;
+  oldText: string;
+  newText: string;
+}
+
+export interface CompareReport {
+  oldPages: number;
+  newPages: number;
+  comparedPages: number;
+  added: number;
+  removed: number;
+  changed: number;
+  differences: CompareDifference[];
+  warnings: string[];
+}
+
+export interface CompareExportRequest {
+  jobId: string;
+  query: CompareQuery;
+  output: string;
 }
 
 // ---- F16：文本转 PDF / 打印邮件 / OCR 语言包 ----

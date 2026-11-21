@@ -52,6 +52,8 @@ pub fn run() {
             commands::objects::redact_pdf,
             commands::objects::list_bookmarks,
             commands::objects::manage_bookmarks,
+            commands::compare::compare_documents,
+            commands::compare::export_compare_report,
             commands::more::text_to_pdf,
             commands::more::share_file,
             commands::more::list_ocr_languages,

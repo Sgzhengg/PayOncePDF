@@ -606,6 +606,7 @@ export default function App() {
     decorate: (p) => patchParams("decorate", p),
     export: (p) => patchParams("export", p),
     objects: (p) => patchParams("objects", p),
+    compare: (p) => patchParams("compare", p),
     create: (p) => patchParams("create", p),
     share: (p) => patchParams("share", p),
   };
@@ -727,6 +728,11 @@ export default function App() {
   };
 
   const runJob = async () => {
+    // F20 文档比对是只读查询，在参数面板内自行触发并显示差异，不走任务队列。
+    if (activeTool === "compare") {
+      setStatusText("文档比对请点击右侧面板的「开始比对」按钮；比对是只读查询，不产出 PDF。");
+      return;
+    }
     if (activeTool !== "batch" && files.length === 0) {
       setStatusText("请先添加至少一个文件");
       return;

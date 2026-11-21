@@ -68,8 +68,8 @@
 <section class="section alt">
   <div class="wrap">
     <p class="eyebrow">What it does</p>
-    <h2>Built for in-place revisions. Fifteen tools ship with it.</h2>
-    <p class="section-intro">The fifteen tools below are the supporting cast, not the headline: <b>in-place revision</b> (edit text, annotate, redact, watermark, manage pages) is the main use case. Merge, split, OCR and text-layer export are helpers; we deliberately do not sell pixel-faithful Word/Excel conversion. Every document operation runs locally. No server round-trip, no page limits, no upload step. We benchmark our feature list against free desktop PDF editors, so you do not have to give up capabilities to keep your files on your machine. <b>One exception:</b> if you choose to install an optional OCR language pack, a public dictionary is downloaded &mdash; the request contains only a language code, never any file. See the <a href="privacy.html">privacy notes</a>.</p>
+    <h2>Built for in-place revisions. Sixteen tools ship with it.</h2>
+    <p class="section-intro">The sixteen tools below are the supporting cast, not the headline: <b>in-place revision</b> (edit text, annotate, redact, watermark, manage pages) is the main use case. Merge, split, OCR and text-layer export are helpers; we deliberately do not sell pixel-faithful Word/Excel conversion. Every document operation runs locally. No server round-trip, no page limits, no upload step. We benchmark our feature list against free desktop PDF editors, so you do not have to give up capabilities to keep your files on your machine. <b>One exception:</b> if you choose to install an optional OCR language pack, a public dictionary is downloaded &mdash; the request contains only a language code, never any file. See the <a href="privacy.html">privacy notes</a>.</p>
     <div class="grid grid-3">
       <div class="card feature"><span class="kicker">01 / Merge</span><b>Merge</b><p>Combine hundreds of PDFs, reorder and remove files, keep bookmarks (optional). Encrypted files only open with a password you already know.</p></div>
       <div class="card feature"><span class="kicker">02 / Split</span><b>Split</b><p>Split by page range, every N pages, or by bookmark level, with a configurable filename template (default <code>{name}_{index}.pdf</code>).</p></div>
@@ -83,9 +83,10 @@
       <div class="card feature"><span class="kicker">10 / Pages</span><b>Page management</b><p>Rotate, delete, extract, insert blank pages or crop (via /CropBox, reversible) without rebuilding the layout.</p></div>
       <div class="card feature"><span class="kicker">11 / Watermark</span><b>Watermark &amp; protect</b><p>Add a watermark, header, footer and page numbers, edit document properties, and set an AES-256 open password plus permission bits. <strong>Watermarks support Chinese</strong> (embedded system CJK font, real text layer); headers and footers remain Latin-only.</p></div>
       <div class="card feature"><span class="kicker">12 / Export</span><b>Editable text output</b><p>Generate TXT / HTML / DOCX / XLSX from the PDF text layer on your machine. Honest limit: text only, no tables or images restored.</p></div>
-      <div class="card feature"><span class="kicker">13 / Objects</span><b>Forms / redaction / bookmarks</b><p>Create fillable AcroForm text fields; <strong>true redaction</strong> (the text object is deleted before the black box is drawn, so copy-and-paste cannot recover it); view, add, rename and delete top-level bookmarks.</p></div>
-      <div class="card feature"><span class="kicker">14 / Text to PDF</span><b>TXT / CSV / HTML to PDF</b><p>Lay out plain text into A4 pages with an embedded system CJK font for Chinese. Honest limit: plain-text layout only &mdash; no Office formatting, tables or images restored.</p></div>
-      <div class="card feature"><span class="kicker">15 / Print &amp; extras</span><b>Print / mail / languages</b><p>Hand the file to the system printer or open a pre-filled mail draft; install any of 42 optional OCR language packs (<strong>the only runtime network request, containing just a language code</strong>). No in-app print preview; mail attachments must be added manually.</p></div>
+      <div class="card feature"><span class="kicker">13 / Objects</span><b>Forms / redaction / bookmarks</b><p>Create fillable AcroForm text fields; <strong>true redaction</strong> (the text object is deleted before the black box is drawn, so copy-and-paste cannot recover it); view, add, rename and delete multi-level bookmarks (levels from the leading <code>&gt;</code> in the spec).</p></div>
+      <div class="card feature"><span class="kicker">14 / Compare</span><b>Diff two PDF versions</b><p>Find text-layer additions, deletions and changes page by page with page numbers and old/new values; export a report. Honest limit: <strong>text layer only &mdash; no image or layout diff</strong>; scans need OCR first.</p></div>
+      <div class="card feature"><span class="kicker">15 / Text to PDF</span><b>TXT / CSV / HTML to PDF</b><p>Lay out plain text into A4 pages with an embedded system CJK font for Chinese. Honest limit: plain-text layout only &mdash; no Office formatting, tables or images restored.</p></div>
+      <div class="card feature"><span class="kicker">16 / Print &amp; extras</span><b>Print / mail / languages</b><p>Hand the file to the system printer or open a pre-filled mail draft; install any of 42 optional OCR language packs (<strong>the only runtime network request, containing just a language code</strong>). No in-app print preview; mail attachments must be added manually.</p></div>
     </div>
   </div>
 </section>
@@ -125,7 +126,7 @@
         </ul>
       </div>
     </div>
-    <div class="callout">Honest scope: the feature list now matches a free desktop editor across fifteen tools, but <strong>clear gaps remain</strong> (a visual editor, image/shape/link editing, stamps and drawing, checkbox-style form fields, a web version, a signed macOS build). We make what we do reliable and state what we cannot do; we do not claim to be ahead on every feature. See the <a href="faq.html">FAQ</a> for known OCR and compression limits.</div>
+    <div class="callout">Honest scope: the feature list now matches a free desktop editor across sixteen tools, but <strong>clear gaps remain</strong> (a visual editor, image/shape/link editing, stamps and drawing, checkbox-style form fields, a web version, a signed macOS build). We make what we do reliable and state what we cannot do; we do not claim to be ahead on every feature. See the <a href="faq.html">FAQ</a> for known OCR and compression limits.</div>
   </div>
 </section>
 

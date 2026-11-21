@@ -17,6 +17,7 @@ import {
   PagesPanel,
 } from "../panels/ExtrasPanels";
 import { CreatePanel, ObjectsPanel, SharePanel } from "../panels/MorePanels";
+import { ComparePanel } from "../panels/ComparePanel";
 
 export type ParamOnChange = {
   [K in ToolId]: (patch: Partial<ParamsState[K]>) => void;
@@ -113,6 +114,15 @@ export function ParamPanel({
           value={params.objects}
           onChange={onChange.objects}
           fileCount={fileCount}
+          filePaths={filePaths}
+        />
+      );
+      break;
+    case "compare":
+      body = (
+        <ComparePanel
+          value={params.compare}
+          onChange={onChange.compare}
           filePaths={filePaths}
         />
       );

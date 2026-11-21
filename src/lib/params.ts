@@ -38,6 +38,7 @@ export const ALL_TOOLS: ToolMeta[] = [
   { id: "decorate", label: "水印", hint: "水印 / 页码 / 属性 / 加密" },
   { id: "export", label: "导出", hint: "TXT / HTML / Word / Excel" },
   { id: "objects", label: "文档对象", hint: "表单 / 脱敏 / 书签" },
+  { id: "compare", label: "文档比对", hint: "两版 PDF 文字层差异（新增 / 删除 / 修改）" },
   { id: "create", label: "文本转 PDF", hint: "TXT / CSV / HTML 含中文" },
   { id: "share", label: "打印与扩展", hint: "系统打印 / 邮件 / OCR 语言包" },
 ];
@@ -197,6 +198,21 @@ export interface ObjectsParams {
   newTitle: string;
 }
 
+// ---- F20：文档比对参数 ----
+export interface CompareParams {
+  /** 旧文件路径；留空则用文件列表第 1 个 */
+  oldFile: string;
+  /** 新文件路径；留空则用文件列表第 2 个 */
+  newFile: string;
+  oldPassword: string;
+  newPassword: string;
+  pages: string;
+  ignoreCase: boolean;
+  ignoreWhitespace: boolean;
+  ignorePunctuation: boolean;
+  output: string;
+}
+
 export interface CreateParams {
   output: string;
   format: "txt" | "csv" | "html";
@@ -223,6 +239,7 @@ export interface ParamsState {
   decorate: DecorateParams;
   export: ExportParams;
   objects: ObjectsParams;
+  compare: CompareParams;
   create: CreateParams;
   share: ShareParams;
 }
@@ -338,6 +355,17 @@ export function createDefaultParams(): ParamsState {
       spec: "1 封面\n2 第二章 交付\n3 附录",
       target: "",
       newTitle: "",
+    },
+    compare: {
+      oldFile: "",
+      newFile: "",
+      oldPassword: "",
+      newPassword: "",
+      pages: "",
+      ignoreCase: false,
+      ignoreWhitespace: true,
+      ignorePunctuation: false,
+      output: "compare-report.txt",
     },
     create: { output: "created.pdf", format: "txt" },
     share: {

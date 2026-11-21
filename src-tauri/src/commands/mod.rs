@@ -4,6 +4,7 @@
 //! Rust 侧用 snake_case 字段，前端自动收发 camelCase（CONTRACT §4 硬性约定）。
 
 pub mod app;
+pub mod compare;
 pub mod extras;
 pub mod jobs;
 pub mod more;
@@ -16,6 +17,17 @@ pub use viewer::{
     PageTextLayout, PageTextLayoutRequest, PdfInfo, PdfInfoRequest, PreviewImage, PreviewRequest,
     TextCharBox,
 };
+// F20 文档比对响应再导出，保持 `crate::commands::*` 的契约风格。
+pub use crate::engine::compare::{CompareDifference, CompareReport, CompareSensitivity};
+
+/// F20 导出对比报告请求（比对查询 + jobId + 输出路径）。
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompareExportRequest {
+    pub job_id: String,
+    pub query: crate::engine::compare::CompareQuery,
+    pub output: String,
+}
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

@@ -47,6 +47,11 @@ function send(method, params = {}) {
     ws.send(JSON.stringify({ id, method, params }));
   });
 }
+// 无头浏览器在后台标签会冻结 setTimeout（mock 进度靠它推进）。
+// 强制把页面置前并模拟聚焦，保证定时器正常触发。
+await send('Page.bringToFront');
+await send('Emulation.setFocusEmulationEnabled', { enabled: true });
+
 async function evaluate(expression) {
   const r = await send('Runtime.evaluate', {
     expression,
@@ -77,6 +82,8 @@ for (let i = 0; i < 40; i += 1) {
   await sleep(300);
 }
 if (!ready) throw new Error('页面在 12 秒内未就绪，后续断言不可信');
+// DOM 就绪不等于 useEffect 的 Promise 订阅完成；再等一拍，否则首批进度事件会丢。
+await sleep(500);
 
 const results = [];
 const check = (name, ok, detail) => {
@@ -89,13 +96,13 @@ check('首屏标语', tagline === 'Your files never leave this computer.', tagli
 const banner = await evaluate("document.querySelector('.preview-banner')?.textContent?.trim()");
 check('预览模式横幅常驻', Boolean(banner && banner.includes('预览模式')), banner?.slice(0, 60));
 
-// 2. 十五个功能入口（F10–F16 范围变更后）
+// 2. 十六个功能入口（F10–F16 范围变更后 + F20 文档比对）
 const tools = await evaluate("Array.from(document.querySelectorAll('.tool-btn-label')).map(e => e.textContent.trim())");
-check('十五个功能入口', tools.length === 15, tools.join(' / '));
-const expectedNew = ['改文字', '批注', '页面', '水印', '导出', '文档对象', '文本转 PDF', '打印与扩展'];
-check('新增八个对标入口齐备', expectedNew.every((t) => tools.includes(t)), expectedNew.map((t) => `${t}:${tools.includes(t)}`).join(' '));
+check('十六个功能入口', tools.length === 16, tools.join(' / '));
+const expectedNew = ['改文字', '批注', '页面', '水印', '导出', '文档对象', '文本转 PDF', '打印与扩展', '文档比对'];
+check('新增对标入口齐备', expectedNew.every((t) => tools.includes(t)), expectedNew.map((t) => `${t}:${tools.includes(t)}`).join(' '));
 const sidebarScroll = await evaluate("(() => { const e = document.querySelector('.tool-list'); return getComputedStyle(e).overflowY; })()");
-check('侧栏可独立滚动（15 项不挤压工作区）', sidebarScroll === 'auto' || sidebarScroll === 'scroll', `overflow-y=${sidebarScroll}`);
+check('侧栏可独立滚动（16 项不挤压工作区）', sidebarScroll === 'auto' || sidebarScroll === 'scroll', `overflow-y=${sidebarScroll}`);
 
 // 2b. F18 框选条在浏览器预览模式必须「明确禁用」，不伪造文字坐标或交互
 const selNote = await evaluate("document.querySelector('.viewer-selection-bar')?.textContent?.trim()");
@@ -130,6 +137,12 @@ const rows = await evaluate("document.querySelectorAll('.filelist tbody tr, .fil
 check('拖放加入文件列表', countText?.includes('2') && rows >= 2, `${countText}; 列表行=${rows}`);
 
 // 4. 开始处理 -> mock 进度 -> 完成
+// 先切回 merge：后续面板断言会切换工具，取消测试也依赖一个可运行的长任务。
+await evaluate(`(() => {
+  Array.from(document.querySelectorAll('.tool-btn')).find(b => b.textContent.includes('合并'))?.click();
+  return true;
+})()`);
+await sleep(200);
 const runBtnEnabled = await evaluate("!document.querySelector('button[aria-label=\"开始处理并导出\"]').disabled");
 check('有输入后导出按钮可用', runBtnEnabled === true, `disabled=${!runBtnEnabled}`);
 await evaluate("document.querySelector('button[aria-label=\"开始处理并导出\"]').click(); true");
@@ -137,15 +150,21 @@ await evaluate("document.querySelector('button[aria-label=\"开始处理并导�
 // （2026-11-20 首次 F18 冒烟即因 0/0 误报一次）。
 let midProgress = '';
 let cancelEnabled = false;
-for (let i = 0; i < 20; i += 1) {
-  await sleep(100);
+// 无头浏览器可能把页面当后台标签，setTimeout 被节流到 1s/次；
+// 轮询窗口放宽到 12s，避免 mock 12 步进度被误判为假失败。
+for (let i = 0; i < 60; i += 1) {
+  await sleep(200);
   midProgress = await evaluate("document.querySelector('.progress-count')?.textContent?.trim()");
   cancelEnabled = await evaluate("!Array.from(document.querySelectorAll('.action-row button')).find(b => b.textContent.includes('取消')).disabled");
   if (/[1-9]\s*\/\s*12/.test(midProgress || '') && cancelEnabled === true) break;
 }
 check('进度事件推进 / 取消按钮可用', /[1-9]\s*\/\s*12/.test(midProgress || '') && cancelEnabled === true, `进度=${midProgress}; 取消可用=${cancelEnabled}`);
-await sleep(1800);
-const statusText = await evaluate("document.querySelector('.status-text')?.textContent?.trim()");
+let statusText = '';
+for (let i = 0; i < 60; i += 1) {
+  await sleep(200);
+  statusText = await evaluate("document.querySelector('.status-text')?.textContent?.trim()") ?? '';
+  if (statusText.includes('预览模式')) break;
+}
 const doneNote = await evaluate("document.querySelector('.actionbar .inline-note')?.textContent?.trim()");
 const fakeOutputs = await evaluate("document.querySelectorAll('.output-list li').length");
 check('任务完成且未伪造输出', Boolean(statusText?.includes('预览模式')) && fakeOutputs === 0, `状态=${statusText}; 提示=${doneNote ?? '无'}; 输出条数=${fakeOutputs}`);
@@ -194,6 +213,30 @@ check(
   Boolean(objectsBody?.includes('真删除文字对象')) && Boolean(objectsBody?.includes('书签管理')),
   `含真删除=${objectsBody?.includes('真删除文字对象')}; 含书签管理=${objectsBody?.includes('书签管理')}`,
 );
+
+// 5d-2. F20 文档比对面板：只读说明、开始比对按钮、诚实边界
+await evaluate(`(() => {
+  const btn = Array.from(document.querySelectorAll('.tool-btn')).find(b => b.textContent.includes('文档比对'));
+  btn.click(); return true;
+})()`);
+await sleep(300);
+const cmpTitle = await evaluate("document.querySelector('.params-header h2')?.textContent?.trim()");
+const cmpBody = await evaluate("document.querySelector('.params-body')?.textContent?.trim()");
+check(
+  'F20 文档比对面板与诚实边界',
+  cmpTitle === '文档比对' && Boolean(cmpBody?.includes('开始比对')) && Boolean(cmpBody?.includes('只读'))
+    && Boolean(cmpBody?.includes('不识别图片')) && Boolean(cmpBody?.includes('扫描件请先走 OCR')),
+  `标题=${cmpTitle}; 含开始比对/只读/图片边界/OCR=${cmpBody?.includes('开始比对')}/${cmpBody?.includes('只读')}/${cmpBody?.includes('不识别图片')}/${cmpBody?.includes('扫描件请先走 OCR')}`,
+);
+// 预览模式点比对不得伪造结果：应如实提示「不调用本地引擎」
+await evaluate(`(() => {
+  const btn = Array.from(document.querySelectorAll('.params-body button')).find(b => b.textContent.includes('开始比对'));
+  btn.click(); return true;
+})()`);
+await sleep(200);
+const cmpMsg = await evaluate("document.querySelector('.params-body')?.textContent?.trim()");
+const cmpFakeResult = await evaluate("document.querySelectorAll('.compare-result').length");
+check('F20 预览模式比对不伪造结果', cmpFakeResult === 0 && (Boolean(cmpMsg?.includes('请选择旧文件与新文件')) || Boolean(cmpMsg?.includes('预览模式不调用本地引擎'))), `伪造结果块=${cmpFakeResult}; 提示=${cmpMsg?.slice(-60)}`);
 
 // 5e. F16 文本转 PDF 明示「只做纯文本排版」
 await evaluate(`(() => {
@@ -249,12 +292,26 @@ await evaluate("window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape
 await sleep(250);
 const dialogClosed = await evaluate("!document.querySelector('[role=dialog]')");
 check('Esc 关闭对话框', dialogClosed === true, `对话框已关闭=${dialogClosed}`);
+await evaluate(`(() => {
+  Array.from(document.querySelectorAll('.tool-btn')).find(b => b.textContent.includes('合并'))?.click();
+  return true;
+})()`);
+await sleep(200);
 await evaluate("document.querySelector('button[aria-label=\"开始处理并导出\"]').click(); true");
-await sleep(350);
+// 等 mock 进度至少推进一步再取消（后台标签 setTimeout 可能被节流）。
+for (let i = 0; i < 30; i += 1) {
+  await sleep(150);
+  const p = await evaluate("document.querySelector('.progress-count')?.textContent?.trim()");
+  if (/[1-9]\s*\/\s*12/.test(p || '')) break;
+}
 await evaluate("window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); true");
-await sleep(300);
-const cancelledText = await evaluate("document.querySelector('.status-text')?.textContent?.trim()");
-check('Esc 取消运行中任务', Boolean(cancelledText?.includes('已取消')), `状态=${cancelledText}`);
+let cancelledText = '';
+for (let i = 0; i < 30; i += 1) {
+  await sleep(150);
+  cancelledText = await evaluate("document.querySelector('.status-text')?.textContent?.trim()") ?? '';
+  if (cancelledText.includes('已取消')) break;
+}
+check('Esc 取消运行中任务', Boolean(cancelledText.includes('已取消')), `状态=${cancelledText}`);
 
 console.log(results.join('\n'));
 const failed = results.filter((r) => r.startsWith('FAIL')).length;

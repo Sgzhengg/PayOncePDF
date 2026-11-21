@@ -1,8 +1,8 @@
 # PayOnce PDF（一次付费 PDF）
 
 > **一个不订阅、不注册、文件内容永不上传的本地 PDF 工具箱。**（PRD §2）
-> 合并 / 拆分 / 压缩 / 图片互转 / 本地 OCR / 签名与表单 / 批量 / **就地改字 / 批注 / 页面管理 / 水印与加密 / 文档导出 / 文档对象（表单·脱敏·书签）/ 文本转 PDF / 打印与扩展**，
-> **十五个工具全部在本机完成**；`$39 / ¥199` 一次买断，含 12 个月 1.x 更新，7 天试用、7 天无理由退款。首发 14 天早鸟 `$29 / ¥149`（限时，到期恢复原价）。**定价已于 2026-11-16 拍板**，依据见 `docs/pricing-decision.md`；国内渠道尚未开放，人民币价仅作参考。
+> 合并 / 拆分 / 压缩 / 图片互转 / 本地 OCR / 签名与表单 / 批量 / **就地改字 / 批注 / 页面管理 / 水印与加密 / 文档导出 / 文档对象（表单·脱敏·书签）/ 文档比对 / 文本转 PDF / 打印与扩展**，
+> **十六个工具全部在本机完成**；`$39 / ¥199` 一次买断，含 12 个月 1.x 更新，7 天试用、7 天无理由退款。首发 14 天早鸟 `$29 / ¥149`（限时，到期恢复原价）。**定价已于 2026-11-16 拍板**，依据见 `docs/pricing-decision.md`；国内渠道尚未开放，人民币价仅作参考。
 > 2026-11-16 两轮范围变更：功能面对标 PDFgear 桌面版（PRD §22、`docs/pdfgear-parity-matrix.md`）。
 > **隐私口径**：文件内容与文件名永不上传；运行时网络请求只有三类且可枚举——一次性激活、可选更新检查、用户主动安装 OCR 语言包。不得宣称「零网络请求」。
 > **2026-11-20 F18**：内置阅读视图支持在渲染页拖选文字，把选中文字与页码带入改字 / 批注 / 脱敏；框选只做定位，执行仍走既有命令，同页重复文字会被唯一性守卫拦下。详见 `docs/requirements/PRD.md` §22.12 与 `docs/test-report.md` §21（**真机未验**）。
@@ -30,7 +30,7 @@ PayOnce PDF/                          # <repo>
 │  ├─ main.tsx / App.tsx / styles.css
 │  ├─ lib/                        # types / backend（Tauri 适配 + 预览 mock）/ errors / params
 │  ├─ components/                 # Sidebar / DropZone / FileList / ParamPanel / ProgressBar / Dialog ...
-│  └─ panels/                     # 十五个功能参数面板（ExtrasPanels.tsx F10–F14、MorePanels.tsx F15–F16）
+│  └─ panels/                     # 十六个功能参数面板（ExtrasPanels.tsx F10–F14、MorePanels.tsx F15–F16、ComparePanel.tsx F20）
 ├─ src-tauri/
 │  ├─ Cargo.toml / build.rs / tauri.conf.json / capabilities/default.json
 │  ├─ src/                        # Rust 后端（21 个 .rs）
@@ -51,7 +51,7 @@ PayOnce PDF/                          # <repo>
 
 ---
 
-## 1.1 功能清单（15 个 UI 入口 / F1–F7 + F10–F16，2026-11-16 两轮范围变更后）
+## 1.1 功能清单（16 个 UI 入口 / F1–F7 + F10–F16 + F20，2026-11-21 增补文档比对后）
 
 | 编号 | 功能 | 引擎 | 诚实边界 |
 |---|---|---|---|
@@ -63,6 +63,7 @@ PayOnce PDF/                          # <repo>
 | **F14** | 导出 TXT / HTML / DOCX / XLSX | PDFium 文字层 + 自写 OOXML ZIP（**无新增依赖**） | **只导文字层，不还原版式/表格/图片**；与商业 SDK 转换差距明确写入 UI/FAQ |
 | **F15** | 创建 AcroForm 文本域 / 真脱敏 / 多级书签管理 | lopdf `/AcroForm` + PDFium 删文字对象 + `/Outlines` 重建 | 仅文本域（无复选框/单选/下拉）；脱敏**真删文字**而非只盖黑框；书签用 spec 行首 `>` 表达层级（不支持拖放换父级）、不随页号自动更新 |
 | **F16** | TXT/CSV/HTML → PDF、系统打印 / 邮件、42 种 OCR 可选语言包 | PDFium + 系统 CJK 字体嵌入 + `ureq` | 纯文本 A4 排版，**不还原 Office 版式**；打印无应用内预览、mailto 附件需手动添加；语言包下载是**唯一运行时联网点** |
+| **F20** | 文档比对（两版 PDF 文字层增删改差异 + 报告导出） | PDFium 文字层 + 自写 LCS diff（**无新增依赖**） | **只比文字层，不识别图片/版式/页序差异**；扫描件需先 OCR；页数不同时按整页列出；只读查询不占导出授权；结果需人工复核 |
 
 > 功能对标 PDFgear 桌面版的范围变更与未决决策见 `docs/pdfgear-parity-matrix.md`。
 > **用户明确暂缓**：定价决策、高保真 Word/Excel 转换、AI 文档问答、移动端。
@@ -152,6 +153,7 @@ cargo check --manifest-path src-tauri/Cargo.toml
 | **M8** | 硬化：错误码、日志、FAQ、官网 | **完成（文档与代码层）** | 12 个错误码、本地日志、官网 6 页、手册、支持模板、验证页、第三方许可齐备；§14 真机测试仍待测 |
 | **M9** | 对标 PDFgear 第一轮：F10–F14 | **代码完成，验证被 M10 推翻重做** | 5 个命令 + 12 入口 + 批量 9 种；当时 11 项单测通过，但第二轮实证发现 F10 改字未生效、旋转页文字层为空（详见 M10） |
 | **M10** | 对标 PDFgear 第二轮：真实 PDF 文件级验证 + F15/F16（2026-11-16） | **引擎级验证完成 / 真机待测** | 修好两个真 bug（`regenerate_content()`、旋转页 `with_unrotated()`）；新增 8 个命令、3 个前端入口（共 15）；**28 PASS / 0 FAIL** 单测含 11 项真实 PDF 文件级；`npm run build` 61 modules、UI 冒烟 20 PASS / 0 FAIL；NSIS 包已重建并验签（§14）；**真机 Tauri GUI 端到端、Adobe Reader / Word / Excel 打开产物、AES-256 阅读器实测、macOS 分支全部未做** |
+| **M11** | 缺陷追修 + F20 文档比对（2026-11-21） | **引擎级验证完成 / 真机待测** | 修连续编辑/布局/拖拽调宽/合并书签层级/旋转页框选/多级书签；新增 F20 文字层比对（增删改 diff + 报告导出，共 16 入口）；**cargo 90 PASS / 0 FAIL**、npm 35 PASS / 0 FAIL、UI 冒烟 26 PASS / 0 FAIL；NSIS 包已重建验签；**真机 Tauri GUI 端到端仍未做** |
 
 > 结论：M0 已在本机达成；M1–M6、M8 的**代码与文档层**已落地；M7 只完成了 Windows 未签名包与更新签名；M9/M10 是 2026-11-16 两轮范围变更，M10 已达到「引擎级真实 PDF 文件级验证」但**尚未达到真机 Tauri GUI 端到端**。PRD 要求「每个里程碑结束提交两平台可运行安装包」目前**未达成**（macOS 未构建、Windows 未做 Authenticode 签名），不得宣称里程碑全部完成。
 > 范围变更依据：`docs/requirements/PRD.md` §22、`docs/pdfgear-parity-matrix.md`。

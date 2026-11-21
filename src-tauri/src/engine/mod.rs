@@ -1,5 +1,6 @@
 //! 引擎层：qpdf / PDFium / lopdf / tesseract 的封装。
 
+pub mod compare;
 pub mod extras;
 pub mod geometry;
 pub mod more;

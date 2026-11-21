@@ -32,7 +32,7 @@ OUT_JSON = ROOT / "tests" / "out" / "preflight-real-device.json"
 
 INSTALLER_REL = "src-tauri/target/release/bundle/nsis/PayOnce-PDF-Setup-1.0.0.exe"
 # 2026-11-20 重建后基线：加入 tessdata 与 F17 阅读视图命令，签名已重新生成。
-INSTALLER_SHA256 = "452ac5d55f67b437c831bdb0bc6e340c0d62ed2ebdc0d4fc159d0957da82bcd1"
+INSTALLER_SHA256 = "1b238165dd08f77767ea7e5f9e4fe8487b89409822e4efdf65065c75061fc665"
 
 RESULTS: list[dict] = []
 

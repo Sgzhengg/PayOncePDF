@@ -203,3 +203,38 @@ test('F19 按矩形精确替换：命令注册、坐标闸门、前端联动与�
   // 复用统一外壳：授权、取消、进度、原子提交都不另开路径
   assert.match(read('src/App.tsx'), /const startJob/);
 });
+
+test('F20 文档比对：命令注册、只读查询、文字层 diff、诚实边界与前端联动', () => {
+  const lib = read('src-tauri/src/lib.rs');
+  assert.match(lib, /commands::compare::compare_documents/);
+  assert.match(lib, /commands::compare::export_compare_report/);
+  const cmd = read('src-tauri/src/commands/compare.rs');
+  assert.match(cmd, /pub fn compare_documents/);
+  assert.match(cmd, /pub fn export_compare_report/);
+  const engine = read('src-tauri/src/engine/compare.rs');
+  // 纯逻辑 diff + 逐页提取 + 扫描件检测（只读，不写文件）
+  assert.match(engine, /fn tokenize/);
+  assert.match(engine, /fn lcs_diff/);
+  assert.match(engine, /pub fn diff_text/);
+  assert.match(engine, /pub fn compare_with_pdfium/);
+  assert.match(engine, /render::PdfDoc::open/);
+  assert.match(engine, /has_text_layer/);
+  assert.match(engine, /请先走 OCR 再比对/);
+  // 超限失败而非 OOM
+  assert.match(engine, /TOKEN_LIMIT/);
+  assert.match(engine, /CHAR_LIMIT/);
+  // 边界写进报告与引擎注释
+  assert.match(engine, /不做\*\*图片、版式/);
+  assert.match(engine, /本报告仅比对文字层文本/);
+  assert.match(read('src-tauri/src/engine/mod.rs'), /pub mod compare;/);
+  // 前端：工具入口 + 命令名 + 面板 + 只读查询封装 + 结果着色样式
+  assert.match(read('src/lib/types.ts'), /\| "compare"/);
+  assert.match(read('src/lib/types.ts'), /interface CompareReport/);
+  assert.match(read('src/lib/params.ts'), /id: "compare"/);
+  assert.match(read('src/lib/backend.ts'), /compareDocuments: "compare_documents"/);
+  assert.match(read('src/lib/backend.ts'), /export async function compareDocuments/);
+  assert.match(read('src/components/ParamPanel.tsx'), /case "compare"/);
+  assert.ok(fs.existsSync(path.join(ROOT, 'src/panels/ComparePanel.tsx')));
+  assert.match(read('src/panels/ComparePanel.tsx'), /不识别图片、版式、页序/);
+  assert.match(read('src/styles.css'), /\.compare-diff-list/);
+});
