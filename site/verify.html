@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Verify no upload — PayOnce PDF</title>
+<meta name="description" content="Verify the no-upload claim yourself: all three enumerable network requests, Wireshark / Fiddler on Windows, Little Snitch / Wireshark on macOS, plus an offline test.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="site-nav">
+  <div class="nav-inner">
+    <a class="brand" href="index.html"><span class="brand-mark">Once</span>PDF</a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="index.html">Home</a>
+      <a href="pricing.html">Pricing</a>
+      <a href="faq.html">FAQ</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="verify.html" class="nav-active">Verify no upload</a>
+      <a href="index.zh.html" class="lang-switch">中文</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <span class="tag">Verifiable by design</span>
+    <h1>Do not take our word for it. Check the traffic.</h1>
+    <p class="lead">File contents never leave your computer. PayOnce PDF can make exactly three kinds of network requests, none containing file content or file names. Here is how to confirm that on your own machine.</p>
+    <p class="tagline">Your files never leave this computer.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <p class="eyebrow">The claim, stated precisely</p>
+    <h2>What you should expect to see.</h2>
+    <p class="section-intro">We do <b>not</b> claim "zero network requests". We claim <b>file contents and file names are never uploaded</b>, and that every request the app can make is on this list. During any document operation (merge, split, compress, image conversion, OCR, sign, batch, edit text, annotate, watermark, export, forms, redaction, bookmarks, text-to-PDF) there should be <b>no new outbound connection at all</b> from the PayOnce PDF process. The one deliberate exception is a language-pack <em>download</em> that you trigger yourself.</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Request</th><th>When it happens</th><th>Payload</th><th>Contains file content?</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td><b>First-time activation</b></td><td>Once, when you enter a licence key</td><td>Small JSON: licence key + irreversible machine-fingerprint hash</td><td class="tag-yes">No</td></tr>
+          <tr><td>2</td><td><b>Optional update check</b></td><td>On launch, only if enabled</td><td>Small GET: version, platform, architecture</td><td class="tag-yes">No</td></tr>
+          <tr><td>3</td><td><b>Optional OCR language pack</b> (download, not upload)</td><td><b>Only</b> when you click "Install language pack"</td><td>GET for <code>raw.githubusercontent.com/tesseract-ocr/tessdata_fast/main/&lt;lang&gt;.traineddata</code>; URL has only a language code, fixed User-Agent, no request body</td><td class="tag-yes">No</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout">Turn the update check off and never install a language pack, and the single activation is the only network request the app will ever make. After that first check, <b>all fifteen tools work with the network fully disabled</b>. Activation and update checks are tiny (a few KB); a real PDF upload would be orders of magnitude larger and appear as a POST/PUT with a multipart or binary body. Request 3 is inbound &mdash; an inbound dictionary of a few MB is normal, an <em>outbound</em> body of that size is not.</div>
+    <!-- TODO(服务端地址): 上线前公布激活服务端与更新检查端点的真实主机名，便于用户核对抓包目标 -->
+    <div class="note">Endpoint hostnames are TODO(activation host) and TODO(update-check host) — placeholders until launch. The updater URL currently in the build config is a placeholder. We will publish the real hostnames here so you can match them against your capture. The language-pack host is not a placeholder: it is fixed as <code>raw.githubusercontent.com</code>, path <code>/tesseract-ocr/tessdata_fast/main/&lt;lang&gt;.traineddata</code>.</div>
+  </div>
+</section>
+
+<section class="section alt">
+  <div class="wrap">
+    <p class="eyebrow">Before you start</p>
+    <h2>Prepare a &ldquo;canary&rdquo; file.</h2>
+    <p class="section-intro">A canary is a unique string placed inside a test document. After capturing, you search the capture for that string; if it never appears, no document bytes were transmitted. Use the same idea for the PDF header marker <code>%PDF-</code>.</p>
+    <ol class="steps">
+      <li>Pick a unique marker, for example <code>PAYONCEPDF-CANARY-8F3A91</code>, that does not appear anywhere else on your machine.</li>
+      <li>Create a small test PDF containing that marker (for example a text note converted to PDF with any local tool, or a page you annotate). Keep it simple: 1–3 pages.</li>
+      <li>Optionally make a second, larger file (a 20 MB scan) so any real upload would be obvious by size.</li>
+      <li>Close unrelated network-heavy apps (browsers, cloud sync, mail) so the capture is easy to read.</li>
+      <li>Note your machine's local IP address (<code>ipconfig</code> on Windows, <code>ifconfig</code> on macOS) so you can filter outbound traffic.</li>
+    </ol>
+    <div class="note">A note on honesty: activation, update checks and language-pack downloads use HTTPS, so Wireshark shows you the destination, size and timing but not the decrypted body. To read that body, use Fiddler's HTTPS decryption (below) — you should see only a short JSON with the key and hash for activation, and an empty request body for the language pack; never a PDF.</div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <p class="eyebrow">Windows · Wireshark</p>
+    <h2>Capture and inspect the packets.</h2>
+    <ol class="steps">
+      <li>Install Wireshark (the installer includes Npcap; accept the Npcap driver). Reboot if prompted.</li>
+      <li>Launch Wireshark and select the interface actually carrying traffic (Wi-Fi or Ethernet). Double-click it to start a capture.</li>
+      <li>If the app is not activated yet, activate it now and note the one request; otherwise skip this step.</li>
+      <li>With the capture running, open PayOnce PDF and run a real operation on the canary file: merge it with another PDF, compress the 20 MB scan, and run OCR on a few pages. Do all three so you cover different code paths.</li>
+      <li>Stop the capture (red square). Save it as a <code>.pcapng</code> file for your records.</li>
+      <li>Apply a display filter for outbound traffic from your machine, e.g. <code>ip.src == 192.168.1.50 &amp;&amp; tcp</code> (replace with your IP). Add <code>dns || tls.handshake.type == 1</code> to list connection attempts.</li>
+      <li>Use <b>Edit &rarr; Find Packet</b> (Ctrl+F), choose &ldquo;String&rdquo; and &ldquo;Packet bytes&rdquo;, and search for <code>PAYONCEPDF-CANARY-8F3A91</code>, then for <code>%PDF-</code>. Both must return <b>zero matches</b>.</li>
+      <li>Check <b>Statistics &rarr; Conversations</b> (TCP tab): while you were processing documents there should be no new conversations opened by PayOnce PDF. The only conversations should be the activation host, (if enabled) the update host, and (only if you installed a language pack) <code>raw.githubusercontent.com</code>.</li>
+      <li>Display-filter <code>http.request.method == "POST" || http.request.method == "PUT"</code>. A document upload would show up here with a large body. Expect no such request tied to file processing.</li>
+      <li>Compare sizes: activation/update requests are tiny (a few KB). A 20 MB scan leaving the machine would produce a sustained multi-megabyte transfer — its absence is itself evidence.</li>
+    </ol>
+  </div>
+</section>
+
+<section class="section alt">
+  <div class="wrap">
+    <p class="eyebrow">Windows · Fiddler</p>
+    <h2>Decrypt HTTPS and read the activation body.</h2>
+    <p class="section-intro">Fiddler Classic acts as a local proxy and can decrypt HTTPS, which lets you read all three request types in plaintext.</p>
+    <ol class="steps">
+      <li>Install Fiddler Classic and open <b>Tools &rarr; Options &rarr; HTTPS</b>; enable <b>Decrypt HTTPS traffic</b> and trust the Fiddler root certificate when prompted. Also enable <b>Capture HTTPS CONNECTs</b>.</li>
+      <li>On the <b>Connections</b> tab confirm Fiddler is acting as the system proxy (port 8888). Fiddler sets this automatically for most Windows apps.</li>
+      <li>Open the <b>Filters</b> tab and use <b>Client Process &rarr; Show only traffic from</b> to select <code>payoncepdf.exe</code> (or enable the Process column in the session list and sort by it).</li>
+      <li>Launch PayOnce PDF and, if needed, activate once. Run the canary merge / compress / OCR operations.</li>
+      <li>Inspect the session list. You should see at most three hosts: the activation endpoint, (if enabled) the update endpoint, and <code>raw.githubusercontent.com</code> only if you deliberately installed a language pack. All other entries belong to other processes and should be filtered out.</li>
+      <li>Double-click the activation session and open the <b>Inspectors &rarr; TextView / JSON</b> tab. Confirm the request body contains only a licence key and a hash — no file name, no path, no <code>%PDF-</code> bytes, no canary string, no multipart form.</li>
+      <li>Confirm the update-check session is a small GET with version/platform identifiers only, and that there is no request carrying the canary marker or a large body.</li>
+      <li>If you installed a language pack, confirm that session is a <b>GET with an empty body</b>, the path ends in <code>/&lt;lang&gt;.traineddata</code> with no filenames or identifiers, and the response is a dictionary file. Search the capture again for the canary string and <code>%PDF-</code>: still zero matches.</li>
+    </ol>
+    <div class="warn">Fiddler changes the traffic path by inserting its own proxy and certificate. Use it to read the decrypted bodies, then cross-check the raw picture with Wireshark. A VPN or corporate proxy can also add hosts that are not PayOnce PDF — filter by process and by the published endpoint hostnames.</div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <p class="eyebrow">macOS · Little Snitch</p>
+    <h2>Watch connections per process.</h2>
+    <p class="section-intro">Little Snitch shows, per process, every connection attempt with bytes sent and received — the clearest way to see that processing a document opens no connection.</p>
+    <ol class="steps">
+      <li>Install Little Snitch (a third-party tool you install yourself; it is not part of PayOnce PDF) and open <b>Network Monitor</b>.</li>
+      <li>In the search/filter box type <code>PayOnce PDF</code> so only that process's connections are listed.</li>
+      <li>Launch PayOnce PDF. If it is not activated, allow the single activation connection; otherwise proceed without any approval.</li>
+      <li>Run the canary merge / compress / OCR / sign / batch operations. Watch Network Monitor in real time: <b>no new connection should appear for PayOnce PDF during those operations</b>.</li>
+      <li>For a stronger check, create a temporary Little Snitch rule that <b>denies all outgoing connections</b> for PayOnce PDF, then repeat every operation. <b>All fifteen tools</b> (except installing a language pack) must still work and export files. That is the practical proof of &ldquo;offline by default&rdquo;.</li>
+      <li>Review the connection list: at most the activation host, (if enabled) the update host, and (only if you installed a language pack) <code>raw.githubusercontent.com</code>. The first two transfer only a few KB; the third is an inbound dictionary. <b>No sustained outbound upload in any case.</b></li>
+    </ol>
+  </div>
+</section>
+
+<section class="section alt">
+  <div class="wrap">
+    <p class="eyebrow">macOS · Wireshark</p>
+    <h2>Raw packet capture on macOS.</h2>
+    <ol class="steps">
+      <li>Install Wireshark. On first launch it may ask to install <b>ChmodBPF</b> so a non-root user can capture; approve it, then reopen Wireshark.</li>
+      <li>Identify the active interface (<code>en0</code> is usually Wi-Fi, <code>en1</code> sometimes Ethernet; check with <code>networksetup -listallhardwareports</code> or <code>ifconfig</code>). Start a capture on it.</li>
+      <li>Activate once if needed, then run the canary merge / compress / OCR operations with the capture running.</li>
+      <li>Stop and save the capture. Filter outbound traffic with <code>ip.src == &lt;your-local-ip&gt; &amp;&amp; tcp</code>.</li>
+      <li>Use <b>Edit &rarr; Find Packet</b> &rarr; String &rarr; Packet bytes to search for <code>PAYONCEPDF-CANARY-8F3A91</code> and <code>%PDF-</code>. Expect zero matches.</li>
+      <li>Open <b>Statistics &rarr; Conversations</b> and confirm that no new conversations were opened by the app during document processing.</li>
+    </ol>
+    <div class="note">If you use both Little Snitch and Wireshark, Little Snitch gives you per-process attribution and Wireshark gives you the raw bytes. Together they cover both &ldquo;which process&rdquo; and &ldquo;what left the machine&rdquo;.</div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <p class="eyebrow">The strongest test</p>
+    <h2>Run it with the network disconnected.</h2>
+    <p class="section-intro">This test needs no special tools and is the most convincing one.</p>
+    <ol class="steps">
+      <li>Activate the app once while online (or stay in the 7-day trial, which needs no activation at all).</li>
+      <li>Turn off Wi-Fi and unplug Ethernet — or, alternatively, create a firewall rule that blocks all outbound traffic for PayOnce PDF (Windows Defender Firewall outbound rule, or a Little Snitch deny-all rule on macOS).</li>
+      <li>Launch PayOnce PDF and exercise <b>all fifteen tools</b>: merge, split, compress, PDF to images, images to PDF, OCR, sign, batch, edit text, annotate, page management, watermark, export, document objects (form / redaction / bookmarks), and text-to-PDF. Printing and mail call your system programs and need no network either.</li>
+      <li>Confirm every operation finishes, export succeeds, and output files are written to the folder you chose.</li>
+      <li>Confirm there is no &ldquo;connect to the internet&rdquo; prompt blocking a feature. With update checks enabled, the check simply skips when offline; it must not disable any tool.</li>
+      <li>Optionally try "Install language pack" while offline: it should fail with a clear message and leave existing language packs untouched. It is the <b>only</b> action that needs a connection beyond activation.</li>
+      <li>Reconnect the network. There should be no queued or delayed upload — nothing was queued in the first place.</li>
+    </ol>
+    <div class="callout">Edge cases, stated honestly: if you have never activated, the very first activation requires one online check. Installing an optional OCR language pack also requires a connection, but only when you explicitly click it. With the update check disabled and no language pack installed, that single activation is the only request the app will ever make. After it, offline use of all fifteen tools is complete.</div>
+  </div>
+</section>
+
+<section class="section alt">
+  <div class="wrap">
+    <p class="eyebrow">Expected results</p>
+    <h2>What is normal, and what is not.</h2>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Scenario</th><th>Expected result</th><th>Suspicious signal</th></tr></thead>
+        <tbody>
+          <tr><td>First activation</td><td>One HTTPS request to the activation host, a few KB, body = key + hash</td><td>Multipart/binary body, large payload, <code>%PDF-</code> or canary string, file names</td></tr>
+          <tr><td>Update check (if enabled)</td><td>One small GET to the update host; version/platform only</td><td>POST with a body, any document data, unexpected host</td></tr>
+          <tr><td>Language pack install (if you clicked it)</td><td>One GET to <code>raw.githubusercontent.com</code>, empty request body, path contains only a language code; <b>inbound</b> dictionary</td><td>Any outbound body, file name, path, canary string, or a host other than the published one</td></tr>
+          <tr><td>During any document operation (all 15 tools)</td><td class="tag-yes">No new outbound connection from PayOnce PDF</td><td>Any new DNS query, TLS handshake, TCP conversation or sustained transfer</td></tr>
+          <tr><td>Canary / <code>%PDF-</code> search across the capture</td><td class="tag-yes">Zero matches</td><td>Any match, in any protocol (HTTP, TLS, DNS, QUIC)</td></tr>
+          <tr><td>Offline / firewall deny-all</td><td class="tag-yes">All fifteen tools work and export files (language-pack install excepted)</td><td>Features disabled, forced re-activation, or network error dialogs</td></tr>
+          <tr><td>Request sizes</td><td class="tag-yes">Activation/update are tiny (a few KB); no outbound body exceeds that</td><td>Multi-megabyte <em>upload</em> matching your test file size</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <p class="eyebrow">Build authenticity</p>
+    <h2>Verify the update signature yourself.</h2>
+    <p class="section-intro">Every installer ships with a <code>.sig</code> file, and the updater refuses a build whose signature does not match the public key embedded in <code>tauri.conf.json</code>. You need neither our private key nor our word to check it.</p>
+    <ul class="clean">
+      <li>From the repository root: <code>pip install cryptography</code>, then <code>python tests/verify-updater-signature.py</code>.</li>
+      <li>It checks three things: the key id in the signature matches the bundled public key; the file signature is valid Ed25519 over BLAKE2b-512 of the installer; the global signature also covers the trusted comment (timestamp, file name, version) so it cannot be swapped.</li>
+      <li>It runs a negative self-test too &mdash; flipping one bit must fail. Exit code <code>0</code> = valid, <code>1</code> = invalid, <code>2</code> = missing or malformed input.</li>
+      <li>To check a different build: <code>python tests/verify-updater-signature.py path/to/setup.exe</code>, with the <code>.sig</code> file next to it.</li>
+    </ul>
+    <div class="warn">This verifies <b>update integrity</b>, not code signing. The current Windows installer is an <b>unsigned internal test build</b>, and no macOS build has been produced, signed or notarized yet. See the <a href="faq.html">FAQ release status</a>.</div>
+  </div>
+</section>
+
+<section class="section alt">
+  <div class="wrap">
+    <p class="eyebrow">If something looks wrong</p>
+    <h2>How to report an anomaly.</h2>
+    <p class="section-intro">If you observe document content leaving your machine, treat it as a serious bug and a breach of our promise. Please report it — do not just work around it.</p>
+    <ul class="clean">
+      <li>Include: OS and version, PayOnce PDF version, exact date/time, the operation you ran, destination host/IP, protocol and port, and the byte size of the request.</li>
+      <li>Attach a redacted screenshot or a trimmed <code>.pcapng</code> containing only the relevant packets; remove anything sensitive first.</li>
+      <li>Describe the steps to reproduce, and whether the app was activated and whether update checks were on.</li>
+      <li>As an immediate mitigation, block all outbound traffic for PayOnce PDF with your firewall — the app is designed to keep working.</li>
+    </ul>
+    <!-- 安全 / 隐私反馈邮箱已统一为 hello@payoncepdf.com；反馈表单地址仍为上线前待办 -->
+    <div class="warn">Security / privacy reports: hello@payoncepdf.com &middot; General support: hello@payoncepdf.com. Contact addresses are fixed; downloads are not live yet. For error codes seen in the app, see <a href="../docs/error-codes.md">docs/error-codes.md</a>; for reply templates, see <a href="../docs/support-template.md">docs/support-template.md</a>.</div>
+    <p class="small" style="margin-top:14px">Related: <a href="privacy.html">privacy notes</a> · <a href="faq.html">FAQ</a> · <a href="index.html">home</a>.</p>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="footer-inner">
+    <ul class="footer-links">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="pricing.html">Pricing</a></li>
+      <li><a href="faq.html">FAQ</a></li>
+      <li><a href="privacy.html">Privacy</a></li>
+      <li><a href="verify.html">Verify no upload</a></li>
+      <li><a href="index.zh.html">中文</a></li>
+    </ul>
+    <p>PayOnce PDF — a local PDF toolbox. No subscription, no account, no upload.</p>
+    <!-- TODO(联系/版权): 替换为真实运营主体、支持邮箱与上线年份 -->
+    <p>© 2026 PayOnce PDF · Support: hello@payoncepdf.com</p>
+    <p class="small">Verification steps target v1 on Windows 10/11 and macOS 11+.</p>
+  </div>
+</footer>
+
+</body>
+</html>

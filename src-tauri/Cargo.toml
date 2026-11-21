@@ -1,0 +1,46 @@
+[package]
+name = "payoncepdf"
+version = "1.0.0"
+description = "PayOnce PDF - local PDF toolbox, no subscription / no account / no upload"
+authors = ["PayOnce PDF"]
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "payoncepdf_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-updater = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+lopdf = "0.36"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+pdfium-render = { version = "0.9", default-features = false, features = ["pdfium_latest", "image_025", "thread_safe"] }
+ed25519-dalek = "2.1"
+base64 = "0.22"
+ureq = { version = "2.12", features = ["json"] }
+sha2 = "0.10"
+hex = "0.4"
+uuid = { version = "1", features = ["v4"] }
+walkdir = "2"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+
+[features]
+# `custom-protocol` is enabled by tauri-cli for production builds.
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
+panic = "abort"

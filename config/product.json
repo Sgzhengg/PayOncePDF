@@ -1,0 +1,83 @@
+{
+  "_status": "2026-11-20 21:52 用户授权「由你拍板」：对标 UPDF 后重新定价为 $39 / ¥199，早鸟 $29 / ¥149，一把钥匙最多 3 台设备。2026-11-16 的价格冲突裁决保留在 previous_resolution 里作为历史。",
+  "product": "PayOnce PDF",
+  "product_cn": "一次付费 PDF",
+  "domain": "https://payoncepdf.com",
+  "support_email": "hello@payoncepdf.com",
+  "price_usd": 39,
+  "price_cny": 199,
+  "early_bird_usd": 29,
+  "early_bird_cny": 149,
+  "max_devices_per_key": 3,
+  "_canonical_source": "docs/updf-parity-decision.md §1 与 docs/requirements/PRD.md §22.10（2026-11-20 拍板）。",
+  "pricing_v2": {
+    "decided_at": "2026-11-20T21:52:00+08:00",
+    "decided_by": "用户授权「由你拍板决定怎样修改和优化」，约束：功能对标 UPDF（上云除外）、价格比 UPDF 便宜一点、外观比 UPDF 漂亮实用",
+    "reference": {
+      "updf_perpetual_usd": 84.99,
+      "updf_perpetual_cny": 238,
+      "updf_annual_usd": 54.99,
+      "updf_annual_cny": 128,
+      "updf_ai_addon_usd_per_year": 69,
+      "note": "UPDF 2026-11 黑五观测价，促销浮动大，以结算页为准；AI 独立收费。"
+    },
+    "rationale": [
+      "¥199 vs ¥238 = 便宜 16%，符合「便宜一点」；$39 vs $84.99 = 便宜 54%，且对方另有 $69/年 AI 加购，总持有成本差距更大",
+      "功能范围扩到文档工作台 + 内置阅读视图，编辑类支持成本上升，$39 留出客服余量",
+      "不回到 $10 级低价：参照系是免费工具与订阅陷阱，不是绝对价格",
+      "3 台设备修补上一轮发现的硬伤：原一机一密钥下 4 台要 $116，反而贵过 UPDF 买断"
+    ],
+    "unchanged": [
+      "单档，不设 $10 入门档 / 团队席位档 / AI 加购",
+      "12 个月 1.x 更新、2.x 老用户五折、授权本身不过期",
+      "7 天全功能试用不绑卡不留邮箱、7 天无理由退款",
+      "定金 $9 / ¥59 保持可退，尾款随早鸟价变为 $20 / ¥90"
+    ],
+    "manual_todo": [
+      "Gumroad 商品价格与首发折扣码改为 $39 / $29",
+      "生产激活服务按 key 记录不同机器指纹，上限 3 台",
+      "国内渠道 ¥199 展示（渠道尚未开放）",
+      "上线前逐条复核竞品当前官方定价"
+    ]
+  },
+  "previous_resolution": {
+    "decided_at": "2026-11-16T22:13:54+08:00",
+    "decided_by": "用户指令「参考资料 $19/¥149改成$29/¥169」",
+    "changed_files": [
+      "E:/PainRadar/docs/pdf-launch/landing.html",
+      "E:/PainRadar/docs/pdf-launch/landing.zh.html",
+      "E:/PainRadar/docs/pdf-launch/copy.md",
+      "E:/PainRadar/docs/pdf-launch/posts.md",
+      "E:/PainRadar/docs/pdf-launch/preorder.md"
+    ],
+    "replacements": 27,
+    "note": "该轮把决策前正式价统一为 $29 / ¥169，已于 2026-11-20 被本文件的 pricing_v2 取代；A/B 三档（$19 / $29 / $39）是当时的历史机制，数字与现行早鸟/正式价巧合，不再执行。"
+  },
+  "_kept_as_is": [
+    "$9 / ¥59 可退定金（预约金，不是售价）",
+    "竞品价格 $9–20/月、$19.99/月、$9/月、Apple $99/年",
+    "docs/pain-and-competitive-analysis.md §2–§10 与 docs/pricing-decision.md 中的决策前历史基线",
+    "E:/PainRadar/docs/pdf-launch/workbuddy-rename-prompt.md 的改名任务原文（仅追加状态注记）",
+    "docs/positioning-v2.md §A 与 E:/PainRadar/docs/pdf-launch/positioning-v2.md 的用户附件原文"
+  ],
+  "_in_sync": [
+    "docs/requirements/PRD.md",
+    "docs/requirements/landing.html",
+    "docs/requirements/landing.zh.html",
+    "docs/requirements/copy.md",
+    "docs/requirements/preorder.md",
+    "site/pricing.html",
+    "site/index.html",
+    "site/index.zh.html",
+    "site/faq.html",
+    "site/README.md",
+    "README.md",
+    "E:/PainRadar/docs/pdf-launch/PRD.md",
+    "E:/PainRadar/docs/pdf-launch/landing.html",
+    "E:/PainRadar/docs/pdf-launch/landing.zh.html",
+    "E:/PainRadar/docs/pdf-launch/copy.md",
+    "E:/PainRadar/docs/pdf-launch/posts.md",
+    "E:/PainRadar/docs/pdf-launch/preorder.md"
+  ],
+  "pending_confirmation": false
+}

@@ -1,0 +1,29 @@
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/
+.toolchain/
+.sidecar-cache/
+tests/out/
+tests/fixtures/
+__pycache__/
+*.pyc
+
+# Sidecar binaries are supplied by scripts/provision-sidecars.mjs and are NOT committed.
+src-tauri/bin/*
+!src-tauri/bin/README.md
+src-tauri/resources/*.dll
+src-tauri/resources/*.dylib
+src-tauri/resources/*.so
+src-tauri/resources/tessdata/
+src-tauri/resources/*.traineddata
+
+# The public key must be committed (it is embedded at compile time).
+# The private key must NEVER be committed.
+src-tauri/keys/*
+!src-tauri/keys/README.md
+!src-tauri/keys/public.key
+scripts/.dev-license-private.key
+
+*.log
+.DS_Store

@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Privacy — PayOnce PDF</title>
+<meta name="description" content="PayOnce PDF collects no user data, never uploads file contents or names, has no telemetry and no accounts. The complete list of three enumerable network requests.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="site-nav">
+  <div class="nav-inner">
+    <a class="brand" href="index.html"><span class="brand-mark">Once</span>PDF</a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="index.html">Home</a>
+      <a href="pricing.html">Pricing</a>
+      <a href="faq.html">FAQ</a>
+      <a href="privacy.html" class="nav-active">Privacy</a>
+      <a href="verify.html">Verify no upload</a>
+      <a href="index.zh.html" class="lang-switch">中文</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <span class="tag">No data collected</span>
+    <h1>We collect nothing. Your files stay on your machine.</h1>
+    <p class="lead">No account, no upload of file contents or file names, no telemetry. This page lists every network request the app can make &mdash; all three of them &mdash; so you can check it yourself.</p>
+    <p class="tagline">Your files never leave this computer.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <h2>What we do not have</h2>
+    <p class="section-intro">The design principle is &ldquo;default safe&rdquo; (PRD §6). These are structural, not settings we might flip later.</p>
+    <div class="grid grid-2">
+      <div class="card"><ul class="checks">
+        <li>No user accounts and no user database</li>
+        <li>No email collection, no sign-up, no mailing list inside the app</li>
+        <li>No telemetry, analytics, crash uploads or usage statistics</li>
+        <li>No file uploads and no upload endpoint in the app</li>
+      </ul></div>
+      <div class="card"><ul class="checks">
+        <li>No cloud storage, sync or <b>server-side document processing</b></li>
+        <li>No advertising SDKs or third-party trackers</li>
+        <li>No cookies or scripts on this website (static HTML + one local stylesheet)</li>
+        <li>No document contents, names or metadata ever transmitted &mdash; not even in the optional language-pack download</li>
+      </ul></div>
+    </div>
+  </div>
+</section>
+
+<section class="section alt">
+  <div class="wrap">
+    <p class="eyebrow">The only network traffic</p>
+    <h2>Three request types, none carrying file content.</h2>
+    <p class="section-intro">This is the complete list &mdash; we do <b>not</b> claim "zero network requests". We claim that <b>file contents and file names are never uploaded</b>, and that every request the app can make is listed here so you can verify it. If you observe anything else originating from PayOnce PDF, please <a href="verify.html">report it</a>.</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Request</th><th>When</th><th>What it sends</th><th>What it never sends</th><th>Can it be disabled?</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><b>First-time activation</b></td>
+            <td>Once, when you activate a licence key</td>
+            <td>The licence key (<code>PAYONCE-XXXX-XXXX-XXXX</code>) and an irreversible machine-fingerprint hash</td>
+            <td>File contents, file names, paths, document metadata, your email</td>
+            <td>Only needed once; afterwards the app works fully offline</td>
+          </tr>
+          <tr>
+            <td><b>Optional update check</b></td>
+            <td>On launch, if enabled</td>
+            <td>App version, platform and architecture, current version identifier</td>
+            <td>File contents or any document-related data</td>
+            <td>Yes — switch it off in settings (PRD F9)</td>
+          </tr>
+          <tr>
+            <td><b>Optional OCR language pack</b> (the app's only runtime download)</td>
+            <td><b>Only</b> when you click "Install language pack" in Print &amp; extras</td>
+            <td>A GET for <code>https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/main/&lt;lang&gt;.traineddata</code> &mdash; the URL contains <b>only a language code</b>; fixed User-Agent, no request body</td>
+            <td>File contents, file names, paths, machine fingerprint, document metadata, email, or any user data</td>
+            <td>Yes &mdash; never happens unless you click it; the bundled English + Simplified Chinese OCR works fully offline without it</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout">This third request is a <b>download of a public static dictionary</b>, not an upload and not cloud processing: recognition still happens entirely on your machine. It is also the reason we no longer say "the app makes no network requests". What we do promise, and what a packet capture can prove, is that <b>no file content ever leaves your computer</b>. Some free editors send PDF contents to a cloud LLM for their AI features &mdash; we do not have that path at all.</div>
+    <!-- TODO(服务端地址): 上线前公布激活服务端与更新检查端点的真实主机名，供用户核对抓包结果 -->
+    <div class="note">Endpoint hostnames are TODO(activation host) and TODO(update-check host); they will be published before launch so you can match them against your own packet capture. The current updater URL in the build config is a placeholder. The language-pack host is fixed and public: <code>raw.githubusercontent.com</code>.</div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <p class="eyebrow">Activation detail</p>
+    <h2>The key and the irreversible fingerprint.</h2>
+    <div class="grid grid-2">
+      <div class="card"><b>What is sent</b><p>The licence key and a one-way hash of a machine fingerprint (Ed25519-signed licence design, PRD §9.1). A hash cannot be reversed into the original hardware identifiers. There is no user identity attached to it.</p></div>
+      <div class="card"><b>Why a hash</b><p>The activation server needs to bind one key to one machine without learning who you are or what is on your disk. The result is cached as a signed local token, so no repeat calls are needed and offline use is the default.</p></div>
+    </div>
+    <div class="callout">You can confirm this yourself: capture the activation request and verify it contains only a small JSON body with the key and hash — no <code>%PDF-</code> bytes, no multipart upload, no document content. See the <a href="verify.html">verification guide</a>.</div>
+  </div>
+</section>
+
+<section class="section alt">
+  <div class="wrap">
+    <p class="eyebrow">Local logs</p>
+    <h2>Off by default, and deliberately minimal.</h2>
+    <p class="section-intro">Local logging is disabled by default (PRD §6.3 / §10). If you turn it on to diagnose a problem:</p>
+    <ul class="clean">
+      <li>It records only the <b>operation type</b> (for example <code>merge</code> or <code>ocr</code>) and the <b>error code</b> (for example <code>E1002</code>).</li>
+      <li>It does not record file names, paths, contents, sizes, or any document metadata.</li>
+      <li>The log file stays on your machine and is never transmitted; there is no remote logging endpoint.</li>
+      <li>You can turn it off again and delete the log at any time (see the <a href="../docs/user-manual.md">user manual</a>, &ldquo;uninstall &amp; log cleanup&rdquo;).</li>
+    </ul>
+    <!-- TODO(日志路径): 确认并记录 Windows / macOS 本地日志文件路径与关闭方式 -->
+    <div class="note">Log file path: TODO(local log path on Windows / macOS). Exact paths are documented in the user manual before release.</div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <p class="eyebrow">Third-party components</p>
+    <h2>All processing components are local.</h2>
+    <p class="section-intro">PayOnce PDF bundles open-source engines that run in-process or as local sidecars. None of them process your documents on a server, and none of them phone home on their own; the only outbound download is the language pack you explicitly request.</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Component</th><th>Role</th><th>Licence</th><th>Network use</th></tr></thead>
+        <tbody>
+          <tr><td>PDFium</td><td>Page rendering to PNG/JPG</td><td>BSD-3-Clause</td><td>None (local library)</td></tr>
+          <tr><td>qpdf</td><td>Merge / split / linearise / remove known password</td><td>Apache-2.0</td><td>None (local sidecar)</td></tr>
+          <tr><td>Tesseract + tessdata</td><td>Local OCR (English + Simplified Chinese bundled; 42 languages supported in total)</td><td>Apache-2.0</td><td>None for recognition; optional <b>user-triggered</b> download of a public <code>.traineddata</code> dictionary (42-language whitelist, no user data in the request)</td></tr>
+          <tr><td>lopdf / image</td><td>PDF structure &amp; image re-encoding</td><td>MIT / Apache-2.0</td><td>None (Rust crates)</td></tr>
+          <tr><td>React / Tauri</td><td>User interface / desktop shell</td><td>MIT / Apache-2.0</td><td>None</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small" style="margin-top:12px">MuPDF and Ghostscript (AGPL-3.0) are explicitly forbidden; LibreOffice is deferred. Full licence texts and attributions ship with the app — see <a href="../src-tauri/resources/THIRD_PARTY_LICENSES.md">THIRD_PARTY_LICENSES.md</a> (PRD §9.2).</p>
+  </div>
+</section>
+
+<section class="section alt">
+  <div class="wrap">
+    <p class="eyebrow">Contact</p>
+    <h2>Questions about privacy.</h2>
+    <p class="section-intro">Because there is no account system, we cannot look up &ldquo;your data&rdquo; — there is none to look up. For privacy questions or to report a concern, write to us:</p>
+    <!-- 隐私 / 安全联系邮箱已统一为 hello@payoncepdf.com -->
+    <div class="callout">Privacy / security contact: hello@payoncepdf.com &middot; General support: hello@payoncepdf.com. Purchase links and downloads are not live yet.</div>
+    <p class="small">See also the <a href="faq.html">FAQ</a> and the <a href="verify.html">step-by-step verification guide</a>.</p>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="footer-inner">
+    <ul class="footer-links">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="pricing.html">Pricing</a></li>
+      <li><a href="faq.html">FAQ</a></li>
+      <li><a href="privacy.html">Privacy</a></li>
+      <li><a href="verify.html">Verify no upload</a></li>
+      <li><a href="index.zh.html">中文</a></li>
+    </ul>
+    <p>PayOnce PDF — a local PDF toolbox. No subscription, no account, no upload.</p>
+    <!-- TODO(联系/版权): 替换为真实运营主体、支持邮箱与上线年份 -->
+    <p>© 2026 PayOnce PDF · Support: hello@payoncepdf.com</p>
+    <p class="small">This page describes v1 behaviour; any change to network behaviour will be documented here first.</p>
+  </div>
+</footer>
+
+</body>
+</html>

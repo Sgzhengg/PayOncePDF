@@ -1,0 +1,3 @@
+# 开发用授权私钥绝不入库（由 scripts/gen-license-keys.mjs 生成）
+# 根目录 .gitignore 由其它 Agent 维护，故在本目录就近加一层保护。
+.dev-license-private.key

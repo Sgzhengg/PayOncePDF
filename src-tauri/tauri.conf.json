@@ -1,0 +1,63 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "PayOnce PDF",
+  "version": "1.0.0",
+  "identifier": "app.payoncepdf.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "PayOnce PDF",
+        "width": 1180,
+        "height": 780,
+        "minWidth": 960,
+        "minHeight": 640,
+        "resizable": true,
+        "center": true,
+        "dragDropEnabled": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["msi", "nsis", "dmg", "app"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": ["resources/*", "resources/tessdata/*"],
+    "externalBin": ["bin/qpdf", "bin/tesseract"],
+    "createUpdaterArtifacts": true,
+    "category": "Productivity",
+    "shortDescription": "Local PDF tools. Pay once.",
+    "longDescription": "Merge, split, compress, convert, OCR and sign PDFs on your machine. No subscription, no account, no upload.",
+    "macOS": {
+      "minimumSystemVersion": "11.0"
+    },
+    "windows": {
+      "wix": {
+        "language": ["en-US"]
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://payoncepdf.com/api/update/{{target}}/{{arch}}/{{current_version}}"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEU1QjhFNDFGMEQzNDRFNjUKUldSbFRqUU5IK1M0NVZVVW9tanFEVmx6cVdvT245dXFhUkQ3THhJOWYyR243V0VyYTFhMHFQRDcK"
+    }
+  }
+}

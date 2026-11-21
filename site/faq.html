@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FAQ — PayOnce PDF</title>
+<meta name="description" content="Honest answers about local processing, offline use, OCR limits, activation, refunds and macOS Gatekeeper.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="site-nav">
+  <div class="nav-inner">
+    <a class="brand" href="index.html"><span class="brand-mark">Once</span>PDF</a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="index.html">Home</a>
+      <a href="pricing.html">Pricing</a>
+      <a href="faq.html" class="nav-active">FAQ</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="verify.html">Verify no upload</a>
+      <a href="index.zh.html" class="lang-switch">中文</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <span class="tag">Straight answers</span>
+    <h1>Frequently asked questions.</h1>
+    <p class="lead">Including the things we do not do well. We do not claim 100% accuracy, permanent free use, lifetime updates, or that no free alternatives exist (they do — see questions 16 and 21). The licence itself never expires; only the free-update window is 12 months.</p>
+    <p class="tagline">Your files never leave this computer.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <h2>Questions</h2>
+    <p class="section-intro">Click a question to expand it. For anything not covered here, see the <a href="privacy.html">privacy notes</a> or <a href="verify.html">verify page</a>.</p>
+    <div class="callout"><b>Release status:</b> these answers describe the intended v1 behaviour. <b>Pricing is decided</b> — $39 / ¥199 one-time, with a 14-day launch price of $29 / ¥149 (see <a href="pricing.html">pricing</a>) — but <b>nothing is on sale yet</b>. The Windows installer exists only as an <b>unsigned internal test build</b>; the macOS build, code signing, notarization, purchase links, activation endpoint and refund contact are still placeholders. Nothing on this site should be read as a shipping, purchasable product yet.</div>
+
+    <div class="faq-item">
+      <details open>
+        <summary>1. Is everything really processed locally?</summary>
+        <div class="faq-a">
+          <p>Yes. Every document operation &mdash; merging, splitting, compression, image conversion, OCR, signing, batch jobs, in-place text edits, annotations, page management, watermarks, export, forms/redaction/bookmarks and text-to-PDF &mdash; runs on your own machine through bundled local engines (PDFium, qpdf, Tesseract and Rust libraries). There is no upload endpoint and no server that receives your documents; no cloud AI or server-side conversion path exists.</p>
+          <p>The app can make <b>three enumerable network requests</b>, none carrying file content: one-time activation, an optional update check, and an optional OCR language-pack download you trigger yourself (a public dictionary, URL contains only a language code). We do not claim "zero network requests" &mdash; we claim file contents and file names are never uploaded. See question 15 and the <a href="privacy.html">privacy notes</a>.</p>
+          <p>You do not have to take our word for it: the <a href="verify.html">verify page</a> shows how to check with a packet capture on Windows and macOS.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="faq-item">
+      <details>
+        <summary>2. Can I use it fully offline, with no network at all?</summary>
+        <div class="faq-a">
+          <p>Yes, after a single first-time activation. That activation needs an internet connection to validate the licence key; the result is cached as a signed local token. After that, <b>every document-processing feature works fully offline</b>. There are two other possible requests, both optional: an update check (switch it off in settings) and the download of an OCR language pack (only happens if you click "Install language pack").</p>
+          <p>We do not claim "zero network requests" &mdash; we claim <b>file contents and file names are never uploaded</b> and that all three request types are enumerable and verifiable. See the <a href="privacy.html">privacy notes</a> for exactly what each contains and the <a href="verify.html">verification guide</a> for the packet-capture steps.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="faq-item">
+      <details>
+        <summary>3. How accurate is OCR, and what are its limits?</summary>
+        <div class="faq-a">
+          <p>Our acceptance targets are at least 95% for English and at least 90% for Simplified Chinese on clean, standard test scans (PRD §7 / §14). These are measured targets, not a guarantee for every document.</p>
+          <p>Local OCR works well on clear scans and simple layouts. Accuracy can drop on complex tables, handwriting, low-resolution or skewed scans, stamps over text, and mixed or unusual fonts. For those cases we would rather say the result may be imperfect than overpromise. You can select a page range and export either a searchable PDF (text layer) or plain TXT. We do not offer cloud OCR as a fallback.</p>
+          <p>English and Simplified Chinese are bundled. <b>42 languages</b> are supported in total; the other 40 can be installed on demand from the "Print &amp; extras" panel. That install is the app's <b>only runtime network request you trigger</b> — it downloads a public dictionary file whose URL contains just a language code. Recognition itself always stays on your machine; the bundled languages work with no connection at all.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="faq-item">
+      <details>
+        <summary>4. Does compression keep the text layer and bookmarks?</summary>
+        <div class="faq-a">
+          <p>Yes. Compression re-encodes and downsamples the images inside the PDF; it does not rasterise the page or remove existing text. The text layer stays selectable and bookmarks are preserved. The acceptance criterion is the target size within ±10% with text still selectable.</p>
+          <p>Trade-off: stronger compression means lower image quality at some point. We show a quality tier and an estimated/actual size so you can judge the result instead of guessing.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="faq-item">
+      <details>
+        <summary>5. What about encrypted or password-protected PDFs?</summary>
+        <div class="faq-a">
+          <p>We support files whose password you already know: enter it to open the file, and we can remove that known password from the output. If the password is wrong you get error E1003; if a password is required you get E1002.</p>
+          <p>We do <b>not</b> crack passwords, bypass DRM, or recover forgotten passwords. Encryption cracking is an explicit non-goal (PRD §19).</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="faq-item">
+      <details>
+        <summary>6. How do signatures and form flattening work?</summary>
+        <div class="faq-a">
+          <p>You place a handwritten or image signature by dragging it onto a page and resizing it. Form fields can be filled in. &ldquo;Flatten&rdquo; bakes the field values and signature into the page content so they can no longer be edited, which is what most recipients expect.</p>
+          <p>The acceptance criterion is that the signed file opens correctly in Adobe Reader and that flattened fields are no longer editable. A signature here is a visual mark, not a cryptographic digital certificate / eIDAS-style signature.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="faq-item">
+      <details>
+        <summary>7. How do the trial and activation work?</summary>
+        <div class="faq-a">
+          <p>The 7-day trial is full-feature and needs no email or account. To keep using export after the trial, you buy a <code>PAYONCE-XXXX-XXXX-XXXX</code> key. The first activation does one online licence check, then a signed token is cached locally (Ed25519) so the app works offline afterwards.</p>
+          <p>Activation sends only the key and an irreversible machine-fingerprint hash — never file contents, file names, or document metadata. Details: <a href="privacy.html">privacy</a>.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="faq-item">
+      <details>
+        <summary>8. Does it work when the network is disconnected?</summary>
+        <div class="faq-a">
+          <p>Yes. Once activated, <b>all fifteen tools work with Wi-Fi and Ethernet turned off</b> — merge, split, compress, image conversion, OCR, sign, batch, edit text, annotate, page management, watermark, export, forms/redaction/bookmarks, text-to-PDF, and printing/mail. The only actions that need a connection are the first activation, an optional update check, and installing an extra OCR language pack (<b>an optional download you trigger yourself</b>; English and Simplified Chinese are bundled). Block the app in your firewall and everything else still works — see the <a href="verify.html">offline test</a>.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="faq-item">
+      <details>
+        <summary>9. What happens when the trial ends?</summary>
+        <div class="faq-a">
+          <p>Only export is limited; the app returns error E2005. Your original files and previously exported files are never deleted, moved or modified, and the app does not reach into your folders. Activating a key restores export immediately. This behaviour is a hard rule (CONTRACT §1): trial expiry must never delete or rewrite user files.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="faq-item">
+      <details>
+        <summary>10. Can I turn off automatic update checks?</summary>
+        <div class="faq-a">
+          <p>Yes. Update checking is optional and can be disabled in settings. Updates are signature-verified (Tauri Updater with a minisign public key); a failed update can be rolled back. With update checks off and no language pack installed, the only remaining network request is the single first activation — and the app continues to work offline either way. Installing an optional OCR language pack is a separate, user-triggered download of a public dictionary; its URL contains only a language code.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="faq-item">
+      <details>
+        <summary>11. Why does macOS block the app, and is it notarized?</summary>
+        <div class="faq-a">
+          <p><b>Current status, stated plainly: the macOS build has not been produced, signed or notarized yet.</b> The Windows installer exists for internal testing but is not Authenticode-signed; neither build is ready for public distribution. The CI workflow includes the intended path — build both architectures, combine them into a universal binary, sign with an Apple Developer ID, notarize with <code>notarytool</code> and staple — but it has not been run on Apple hardware. Distribution will be direct, not through the Mac App Store, because App Store sandboxing would restrict the bundled sidecars and arbitrary file access.</p>
+          <p>Once a notarized build is actually released, Gatekeeper should open it without warnings. If you see a &ldquo;cannot be opened&rdquo; warning on an <b>official</b> build, contact us rather than bypassing Gatekeeper. <!-- TODO(macOS 签名): Developer ID 与公证流水线就绪后，补充具体签名主体与验证命令，并把本段改为已签名口径 --></p>
+        </div>
+      </details>
+    </div>
+
+    <div class="faq-item">
+      <details>
+        <summary>12. Can you edit text in a PDF? What about Word / Excel conversion?</summary>
+        <div class="faq-a">
+          <p><b>Yes for in-place text replacement.</b> If you spot a typo while reading, use <b>Edit text</b> to find and replace it directly in the original PDF &mdash; no Word round-trip, no Acrobat subscription. It works on selectable text (scans need OCR first), supports Chinese, and does not reflow the page. If the embedded font lacks a glyph for your new text, PayOnce PDF returns a clear error instead of writing garbage or question marks. Longer replacements may visually overlap the text to the right, so please eyeball the result.</p>
+          <p><b>Not yet for a Word-like visual editor</b> (cursor editing, paragraph reflow, dragging images or shapes), and <b>not for high-fidelity conversion</b>. We do export the text layer to TXT, HTML, DOCX and XLSX on your machine, but tables, images and layout are not restored. Commercial SDK-based conversion like some free editors offer is a known gap: achieving it would require a licensed SDK or bundling a ~200 MB office suite, which conflicts with our installer size and one-time price. We would rather state the limit than pretend a mangled table is a conversion.</p>
+          <p>The reverse direction is also covered, with the same honesty: the <b>Text to PDF</b> tool turns TXT / CSV / HTML into A4 pages (with an embedded system CJK font for Chinese). It is <b>plain-text layout</b>, not an Office converter — HTML tags are stripped, scripts are not executed, CSS is not rendered, and no tables, images or styling are restored.</p>
+          <p>This is a scoped decision, not an oversight. See the <a href="index.html">not-supported list</a> and the <a href="index.html">feature grid</a>.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="faq-item">
+      <details>
+        <summary>13. How do I get a refund?</summary>
+        <div class="faq-a">
+          <p>Within 7 days of purchase, request a refund through the storefront you used (Gumroad for overseas, 爱发电 for China) or by email. No reason is required and there is no account or subscription to cancel. Include your order ID and the email used at checkout.</p>
+          <!-- TODO(退款入口): 填入 Gumroad / 爱发电 退款入口与支持邮箱 -->
+          <p>Refund contact: hello@payoncepdf.com. Because we keep no user database, we identify purchases by the storefront order ID only.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="faq-item">
+      <details>
+        <summary>14. Which platforms and PDF versions are supported?</summary>
+        <div class="faq-a">
+          <p>Windows 10 1809+ (x64) and macOS 11+ as a universal binary (Apple Silicon and Intel). PDF 1.4–2.0 and password-protected PDFs with a known password. There is no mobile app, no web version and no browser extension.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="faq-item">
+      <details>
+        <summary>15. What exactly does the app send over the network?</summary>
+        <div class="faq-a">
+          <p><b>Exactly three kinds, none containing file content or file names:</b> (1) a one-time activation carrying the licence key and an irreversible machine-fingerprint hash; (2) an optional update check carrying only version/platform identifiers; (3) an <b>optional, user-triggered</b> download of a public OCR dictionary from <code>raw.githubusercontent.com/tesseract-ocr/tessdata_fast/main/&lt;lang&gt;.traineddata</code>, where the URL contains only a language code. There is no telemetry, no analytics, no crash upload, and no cloud document processing or AI endpoint. We therefore no longer say "zero network requests" — the precise, verifiable promise is <b>file contents never leave your computer, and all three requests are enumerated here</b>. See the <a href="privacy.html">privacy notes</a> and the <a href="verify.html">verification steps</a>.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="faq-item">
+      <details>
+        <summary>16. Free PDF editors exist. Why would I pay $39?</summary>
+        <div class="faq-a">
+          <p>Fair question, and we would rather answer it than dodge it. Free desktop editors such as PDFgear are genuinely capable and free — PDFgear can even edit existing PDF text in place — and for most everyday jobs they are a perfectly good choice. We benchmark our feature list against them rather than pretending they do not exist.</p>
+          <p>Three things we can promise that a free tool cannot, based on its own published statements (verified 2026-11-16):</p>
+          <ul>
+            <li><b>Your file contents never leave your computer.</b> Some free editors send document content and chat text to a cloud LLM after an explicit consent prompt, and their own statement acknowledges server-side processing for advanced features. PayOnce PDF has <b>no cloud document-processing path at all</b>. We make three enumerable network requests (activation, optional update check, optional public OCR dictionary download), none of which carries any file, file name or user data; the third is a download you trigger, not an upload. You can verify all of this with a packet capture (<a href="verify.html">how</a>).</li>
+            <li><b>The price will not change under you.</b> A free editor's own statement says it may add paid options for AI features, high-accuracy OCR and complex conversions in the future. Ours is $39 once, with a written 12-month 1.x update boundary. No trial-to-paid surprise, no credit card on file.</li>
+            <li><b>Batch jobs are auditable.</b> Point at a folder, apply one of nine operations to every file, and get a <code>report.csv</code> with per-file error codes. A failed file is recorded and never silently dropped, and no input file is ever overwritten in place.</li>
+          </ul>
+          <p>If none of those three matter to you, use the free tool &mdash; we mean that. We are not trying to win on feature count alone; a free product with a larger team will usually win that race. We are trying to be the one you can verify.</p>
+          <p><b>Where we are still behind:</b> high-fidelity Word/Excel/PPT conversion (we export the text layer only), a Word-like visual editor, editing images/shapes/links, stamps and drawing, checkbox/radio/dropdown form fields, nested bookmarks, an in-app print preview, automatic mail attachments, mobile and web versions, and a signed macOS build. Form creation (text fields), true redaction, top-level bookmarks, printing, mail and 42 OCR languages <b>are now included</b> — see the <a href="index.html">feature grid</a>. We do not hide the remaining gaps behind vague wording.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="faq-item">
+      <details>
+        <summary>17. Can I create form fields, redact text and manage bookmarks?</summary>
+        <div class="faq-a">
+          <p>Yes, in the <b>Objects</b> tool (three modes). <b>Create form</b> adds standard AcroForm text fields (single-line, multiline, required) as Widget annotations with <code>/NeedAppearances true</code>, so readers such as Adobe Reader and PDFgear generate the appearance and let you type into them. Existing form fields are preserved, not overwritten.</p>
+          <p><b>Redaction is real</b>: we delete the underlying text object <em>before</em> drawing the black box, so copying from the resulting PDF cannot recover the original words — unlike a black rectangle drawn over still-selectable text. It works on selectable text only; scans need OCR first. Please open the output and double-check the sensitive content is gone.</p>
+          <p><b>Bookmarks</b> can be listed, replaced as a set, added, renamed and deleted via a rebuilt <code>/Outlines</code> tree. Honest limits: <b>top-level bookmarks only</b> (no nesting), and bookmarks do not automatically follow page numbers after pages are inserted or deleted.</p>
+          <p>Form creation currently offers <b>text fields only</b> — no checkboxes, radio buttons, dropdowns, calculation scripts or signature fields.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="faq-item">
+      <details>
+        <summary>18. Do watermarks and text-to-PDF support Chinese?</summary>
+        <div class="faq-a">
+          <p><b>Watermark text: yes.</b> When the watermark contains non-Latin characters, PayOnce PDF embeds a system CJK TrueType font and writes the text into a real text layer (horizontally centred, grey). Font size applies; rotation and independent opacity do not apply to Chinese watermarks. If no system CJK font is found, you get a clear error rather than boxes or mojibake. <b>Headers and footers remain Latin-only</b> (Helvetica/WinAnsi) and will error on Chinese input rather than writing garbage.</p>
+          <p><b>Text to PDF: yes.</b> TXT, CSV and HTML sources become A4 pages at 11pt with automatic pagination, using an embedded system CJK font so Chinese renders correctly. This is <b>plain-text layout, not an Office converter</b>: HTML tags are stripped, scripts never run, CSS is not rendered, and no tables, images or formatting are restored. For a faithful result, export the PDF from the original application instead.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="faq-item">
+      <details>
+        <summary>19. How do printing, mail and OCR language packs work &mdash; and does that need the internet?</summary>
+        <div class="faq-a">
+          <p><b>Printing</b> hands the file to your system's default PDF viewer (Windows <code>Start-Process -Verb Print</code>, macOS <code>lp</code>). The print dialog belongs to that viewer; there is <b>no in-app print preview</b>. <b>Mail</b> opens a <code>mailto:</code> draft with a pre-filled subject and body; because mailto cannot attach files reliably across platforms, <b>you add the PDF in your mail client manually</b>. Neither uploads anything.</p>
+          <p><b>Language packs</b> are the one case that uses the network. In "Print &amp; extras" you can install any of 42 whitelisted Tesseract languages (English + Simplified Chinese are bundled). Clicking install downloads a public <code>.traineddata</code> dictionary from <code>raw.githubusercontent.com</code>; the URL contains <b>only the language code</b> and the request carries no file, file name, path, machine fingerprint or user data. The download is written to a temp file and swapped in only after validation (undersized responses are discarded, existing packs are untouched). <b>OCR itself still runs entirely on your machine.</b></p>
+          <p>So the precise promise is: <b>file contents never leave your computer, and there are exactly three enumerable request types</b> (activation, optional update check, optional language-pack download). We do not say "no network requests at all". If you never install a language pack and switch off update checks, the first activation is the only request the app ever makes. See <a href="privacy.html">privacy</a> and the <a href="verify.html">verification guide</a>.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="faq-item">
+      <details>
+        <summary>20. What is PayOnce PDF's main use case, then?</summary>
+        <div class="faq-a">
+          <p><b>In-place revision of a PDF you are reading, on a desktop, offline, for a one-time price.</b> You spot a wrong date, a name that should be hidden, or a page that needs a note &mdash; you fix it in the original file instead of converting to Word and back. We are deliberately <em>not</em> an all-in-one suite.</p>
+          <p>We split the product into four layers: <b>reading and annotating</b> is the workspace (free readers do it too, so we do not charge for it); <b>in-place revision</b> is the only paid job (edit existing text, annotate, true redaction, watermark / page numbers, page management); <b>conversion and OCR</b> are included helpers but never the headline &mdash; we export the text layer and do not promise pixel-faithful Word/Excel output; <b>layout-faithful conversion, a Word-like visual editor, cloud AI, mobile apps and sync</b> are explicitly out of scope.</p>
+          <p>Why this one? In our 300-sample study, 40% of 81 valid pain points were about pricing and subscriptions and 11% about editing and forms &mdash; the complaint was the billing, not a missing feature. So we picked the one job where &ldquo;no subscription, no upload, one price&rdquo; is itself the reason to buy. See <code>docs/primary-use-case-decision.md</code> for the market and unit-economics reasoning.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="faq-item">
+      <details>
+        <summary>21. Adobe Acrobat Reader is free &mdash; why would I pay to change a few words?</summary>
+        <div class="faq-a">
+          <p>Because the free Reader cannot change <em>existing</em> PDF text. It views, prints, comments, highlights, fills and signs; editing existing words or images requires a paid Acrobat plan (checked against product documentation and independent comparisons, 2026-11-20). The usual workaround is converting the PDF to Word, editing there, then exporting back &mdash; exactly the round-trip we remove.</p>
+          <p>Our <b>Edit text</b> tool replaces text directly in the original PDF, locally, without reflow. It works on selectable text (scans need OCR first), supports Chinese, and returns a clear error when the embedded font lacks a glyph instead of writing garbage. Longer replacements can visually overlap neighbouring text, so please eyeball the result after saving.</p>
+          <p>On price: Acrobat Pro is roughly $239.88/year on an annual plan; PayOnce PDF is <b>$39 / ¥199 once</b>, with the licence itself never expiring and a written 12-month 1.x update window. We are <b>not</b> claiming feature parity with Acrobat &mdash; see question 16 for the gaps. We are claiming one narrow job, done offline, without a subscription.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="faq-item">
+      <details>
+        <summary>22. Can I just select the words on the page and change them?</summary>
+        <div class="faq-a">
+          <p>Yes, on the desktop app. Drag over words on the rendered page and PayOnce PDF highlights the characters it actually found. From there you can <b>change this one spot directly</b>: the selection rectangle (in PDF points) goes to the local engine, which rewrites only the text object under your cursor. Other identical words on the same page are left alone, and the result is saved next to the original as <code>name_edited.pdf</code> and shown in the preview.</p>
+          <p>The other route feeds the same selection into <b>Edit text</b>, <b>Annotate</b> or <b>Redact</b>, which still locate text by its string — so that path requires a unique match and blocks silently changing every occurrence.</p>
+          <p>What we deliberately do <em>not</em> claim: this is not a Word-like click-and-type canvas, it does not reflow paragraphs, and direct editing is limited to <b>one line of continuous text</b>. Cross-line selections, rotated pages (<code>/Rotate</code> ≠ 0), scans without a text layer, pages above 60,000 characters, PDFs whose text layer order does not match the content stream, and browser preview mode are refused with a reason instead of guessed at. Nothing is uploaded and no temporary file is written for this step.</p>
+          <p>You do not have to re-import the file between edits. After the first change the preview switches to <code>name_edited.pdf</code>, and dragging over another spot keeps editing <em>that</em> file: every further change is folded into the same <code>*_edited.pdf</code>, the preview refreshes in place without jumping back to page 1, and your original stays byte-for-byte untouched. One caveat: there is no undo — each click overwrites the result file, so copy it aside if you need intermediate versions. Going back to the original and editing again starts a fresh result file rather than discarding the earlier one.</p>
+          <p>What you can type depends on the font already in the file, not on a character list we chose: English and ASCII, CJK when an embedded font contains those glyphs, and Latin-1 symbols such as <code>± ° µ × ÷</code> are all editable, even in standard non-embedded Helvetica. Math symbols like <code>≈ ≤ ≥ ∑ ∫ √ π Ω</code> work when the PDF embeds a font that has them, and are refused with an explanation when it does not. Subscripts and superscripts are separate small-font text objects, so dragging across a whole <code>H₂O</code> is refused (edit the superscript on its own instead) — otherwise the small text would be flattened to body size. A fraction is a numerator, a drawn rule and a denominator, so it cannot be edited as one unit. If the font has no glyph for the character you typed, nothing is written at all: the output is discarded and your original file stays byte-for-byte untouched.</p>
+        </div>
+      </details>
+    </div>
+
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="footer-inner">
+    <ul class="footer-links">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="pricing.html">Pricing</a></li>
+      <li><a href="faq.html">FAQ</a></li>
+      <li><a href="privacy.html">Privacy</a></li>
+      <li><a href="verify.html">Verify no upload</a></li>
+      <li><a href="index.zh.html">中文</a></li>
+    </ul>
+    <p>PayOnce PDF — a local PDF toolbox. No subscription, no account, no upload.</p>
+    <!-- TODO(联系/版权): 替换为真实运营主体、支持邮箱与上线年份 -->
+    <p>© 2026 PayOnce PDF · Support: hello@payoncepdf.com</p>
+    <p class="small">Answers are version-specific to v1; see docs/error-codes.md for error details.</p>
+  </div>
+</footer>
+
+</body>
+</html>

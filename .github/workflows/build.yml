@@ -1,0 +1,578 @@
+# PayOnce PDF 双平台构建 / 签名 / 公证 / 验收流水线
+#
+# PRD 2.3: CI 矩阵 windows-latest + macos-14(arm64) + macos-13(x64)
+# PRD 9.1: qpdf / tesseract / tessdata / PDFium 三平台 sidecar
+# PRD 12 : Windows EV/Azure Trusted Signing + macOS Developer ID 签名/公证/staple + dmg
+# PRD 15 : Windows 先发 beta；macOS 在公证通过后 <=2 周内发布。
+#          本 workflow 只产出并上传已签名/公证的制品（或明确标注 UNSIGNED 的内部测试件），
+#          不自动发布；发布节奏由人工按 15 节执行。
+#
+# 重要：所有凭据一律走 secrets.*，未配置时跳过签名并在日志标注 UNSIGNED，
+#       绝不硬编码任何证书/密码/账号。需要人工核实的项见文末 TODO 汇总。
+
+name: PayOnce PDF build / sign / verify
+
+'on':
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1) 三路矩阵构建（PRD 2.3）
+  # ---------------------------------------------------------------------------
+  build:
+    name: build (${{ matrix.os }} / ${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            arch: x64
+            platform: windows
+          - os: macos-14          # Apple Silicon / arm64
+            target: aarch64-apple-darwin
+            arch: arm64
+            platform: macos
+          - os: macos-13          # Intel / x86_64
+            target: x86_64-apple-darwin
+            arch: x64
+            platform: macos
+
+    # secrets 不能直接用在某些 if 里，统一映射为 job 级 env 再判定（GitHub 官方做法）。
+    env:
+      # Windows: Azure Trusted Signing
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      AZURE_CODE_SIGNING_NAME: ${{ secrets.AZURE_CODE_SIGNING_NAME }}
+      AZURE_CERT_PROFILE: ${{ secrets.AZURE_CERT_PROFILE }}
+      AZURE_ENDPOINT: ${{ secrets.AZURE_ENDPOINT }}
+      # Windows: EV 证书（PFX base64）
+      EV_CERT_PFX: ${{ secrets.EV_CERT_PFX }}
+      EV_CERT_PASSWORD: ${{ secrets.EV_CERT_PASSWORD }}
+      # macOS: Developer ID 证书 / 临时 keychain
+      MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+      MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+      MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+      MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+      # macOS: 公证
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+      # Tauri Updater 签名（createUpdaterArtifacts: true）
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      # 可选：sidecar 离线缓存目录（仓库变量），设置后 provision 走 --offline 不联网
+      SIDECAR_OFFLINE_DIR: ${{ vars.SIDECAR_OFFLINE_DIR }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install frontend deps (npm ci)
+        run: npm ci
+
+      - name: Setup Rust stable + target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      # -------------------------------------------------------------------
+      # 平台依赖：Tauri 2 在 windows-latest / macos-* 上依赖均为系统预装。
+      # Windows: WebView2 + Windows SDK(signtool) + tar；macOS: Xcode CLT + brew + python3。
+      # -------------------------------------------------------------------
+      - name: 平台依赖自检 (Windows)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          Write-Host "windows-latest 预装 WebView2 / Windows SDK (signtool) / tar；无需额外安装。"
+          tar --version | Select-Object -First 1
+
+      # UB Mannheim 只提供 NSIS 安装包，没有可直接解压的便携 zip。
+      # provision-sidecars.mjs 会优先复用本机安装的 tesseract.exe；
+      # 若设置了 SIDECAR_OFFLINE_DIR 则完全走离线缓存，跳过本步。
+      - name: 安装 Tesseract OCR（Windows sidecar 来源）
+        if: matrix.platform == 'windows' && env.SIDECAR_OFFLINE_DIR == ''
+        shell: pwsh
+        run: |
+          choco install tesseract -y --no-progress
+          $tessHome = "C:\Program Files\Tesseract-OCR"
+          if (-not (Test-Path "$tessHome\tesseract.exe")) { throw "tesseract.exe 未安装到 $tessHome" }
+          "TESSERACT_HOME=$tessHome" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          & "$tessHome\tesseract.exe" --version | Select-Object -First 1
+
+      - name: 平台依赖自检 (macOS)
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: |
+          xcode-select -p
+          brew --version | head -1
+          python3 --version
+
+      # -------------------------------------------------------------------
+      # 判定签名方式：全部凭据缺失 -> 明确标注 UNSIGNED，绝不静默当成功发布件
+      # -------------------------------------------------------------------
+      - name: 判定 Windows 签名方式
+        if: matrix.platform == 'windows'
+        shell: bash
+        run: |
+          if [ -n "$EV_CERT_PFX" ] && [ -n "$EV_CERT_PASSWORD" ]; then
+            echo "WIN_SIGN_METHOD=ev" >> "$GITHUB_ENV"
+          elif [ -n "$AZURE_CLIENT_ID" ] && [ -n "$AZURE_TENANT_ID" ] && \
+               [ -n "$AZURE_CLIENT_SECRET" ] && [ -n "$AZURE_SUBSCRIPTION_ID" ] && \
+               [ -n "$AZURE_CODE_SIGNING_NAME" ] && [ -n "$AZURE_CERT_PROFILE" ]; then
+            echo "WIN_SIGN_METHOD=azure" >> "$GITHUB_ENV"
+          else
+            echo "WIN_SIGN_METHOD=none" >> "$GITHUB_ENV"
+          fi
+          echo "Windows 签名方式: $(grep WIN_SIGN_METHOD "$GITHUB_ENV" | tail -1 | cut -d= -f2)"
+
+      - name: 判定 macOS 签名 / 公证方式
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: |
+          if [ -n "$MACOS_CERT_P12" ] && [ -n "$MACOS_CERT_PASSWORD" ] && [ -n "$MACOS_KEYCHAIN_PASSWORD" ]; then
+            echo "MACOS_CAN_SIGN=true" >> "$GITHUB_ENV"
+          else
+            echo "MACOS_CAN_SIGN=false" >> "$GITHUB_ENV"
+          fi
+          if [ -n "$APPLE_ID" ] && [ -n "$APPLE_TEAM_ID" ] && [ -n "$APPLE_APP_PASSWORD" ]; then
+            echo "MACOS_CAN_NOTARIZE=true" >> "$GITHUB_ENV"
+          else
+            echo "MACOS_CAN_NOTARIZE=false" >> "$GITHUB_ENV"
+          fi
+
+      # -------------------------------------------------------------------
+      # Sidecar 供给（PRD 9.1）
+      # 2026-11-16 已实测核实的直链：qpdf 11.9.1 mingw64 zip、
+      #   tessdata_fast(main) eng/chi_sim、pdfium-binaries chromium/8152 的
+      #   win-x64 / mac-arm64 / mac-x64 tgz。
+      #   Windows tesseract 无便携包 URL，改用上一步 choco 安装 + TESSERACT_HOME。
+      #   上游版本会变，升级前需重新核实；也可设置 SIDECAR_OFFLINE_DIR 走 --offline。
+      # -------------------------------------------------------------------
+      - name: 供给 sidecar (qpdf / tesseract / tessdata / PDFium)
+        shell: bash
+        run: |
+          if [ -n "$SIDECAR_OFFLINE_DIR" ]; then
+            echo "使用离线缓存: $SIDECAR_OFFLINE_DIR"
+            node scripts/provision-sidecars.mjs --target "${{ matrix.target }}" --offline "$SIDECAR_OFFLINE_DIR"
+          else
+            node scripts/provision-sidecars.mjs --target "${{ matrix.target }}"
+          fi
+
+      # -------------------------------------------------------------------
+      # Tauri 构建（externalBin / resources / updater artifacts）
+      # -------------------------------------------------------------------
+      - name: Tauri build
+        shell: bash
+        run: npm run tauri build -- --target "${{ matrix.target }}"
+
+      # 统一发行命名：PayOnce-PDF-Setup-<version>.exe / .msi（macOS dmg 由后续 hdiutil 步骤按版本命名）
+      - name: 统一安装包发行名
+        shell: bash
+        run: node scripts/rename-bundles.mjs --require --windows-only
+
+      # -------------------------------------------------------------------
+      # Windows 签名：EV 证书 (signtool) 或 Azure Trusted Signing
+      # -------------------------------------------------------------------
+      - name: Windows 未签名（凭据未配置）
+        if: matrix.platform == 'windows' && env.WIN_SIGN_METHOD == 'none'
+        shell: bash
+        run: |
+          echo "::warning title=UNSIGNED::Windows 构建 UNSIGNED：EV_CERT_PFX/EV_CERT_PASSWORD 与 AZURE_* 均未配置。产物仅供内部测试，不可公开发布。"
+          echo "UNSIGNED build - skipping Windows signing (secrets absent)."
+
+      - name: Windows 签名 (EV 证书 / signtool)
+        if: matrix.platform == 'windows' && env.WIN_SIGN_METHOD == 'ev'
+        shell: pwsh
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP "payoncepdf-ev.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:EV_CERT_PFX))
+          $signTool = (Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\*\x64\signtool.exe" -ErrorAction SilentlyContinue |
+                       Sort-Object FullName -Descending | Select-Object -First 1).FullName
+          if (-not $signTool) { $signTool = "signtool" }
+          Write-Host "signtool: $signTool"
+          $bundle = "src-tauri/target/${{ matrix.target }}/release/bundle"
+          $files = Get-ChildItem -Path $bundle -Recurse -Include *.msi,*.exe -File -ErrorAction Stop
+          if ($files.Count -eq 0) { throw "未找到待签名安装包：$bundle" }
+          foreach ($f in $files) {
+            & $signTool sign /f $pfx /p $env:EV_CERT_PASSWORD /fd sha256 /td sha256 `
+              /tr http://timestamp.digicert.com /v $f.FullName
+            if ($LASTEXITCODE -ne 0) { throw "signtool 签名失败: $($f.FullName)" }
+          }
+          Remove-Item $pfx -Force
+          Write-Host "EV 签名完成，共 $($files.Count) 个安装包。"
+
+      # TODO(verify-action-inputs): 按所 pin 的 Azure/trusted-signing-action 版本核实输入名
+      # （endpoint / trusted-signing-account-name / certificate-profile-name / files）。
+      - name: Windows 签名 (Azure Trusted Signing)
+        if: matrix.platform == 'windows' && env.WIN_SIGN_METHOD == 'azure'
+        uses: Azure/trusted-signing-action@v0
+        with:
+          endpoint: ${{ env.AZURE_ENDPOINT || 'https://eus.codesigning.azure.net/' }}
+          trusted-signing-account-name: ${{ env.AZURE_CODE_SIGNING_NAME }}
+          certificate-profile-name: ${{ env.AZURE_CERT_PROFILE }}
+          files: |
+            ${{ github.workspace }}\src-tauri\target\${{ matrix.target }}\release\bundle\msi\*.msi
+            ${{ github.workspace }}\src-tauri\target\${{ matrix.target }}\release\bundle\nsis\*.exe
+        # AZURE_CLIENT_ID / TENANT_ID / CLIENT_SECRET / SUBSCRIPTION_ID 由 job 级 env 继承。
+
+      # -------------------------------------------------------------------
+      # macOS：临时 keychain -> 逐文件签名 -> ditto 暂存 + hdiutil dmg
+      #         -> notarytool submit --wait -> stapler staple
+      # -------------------------------------------------------------------
+      - name: macOS 未签名（凭据未配置）
+        if: matrix.platform == 'macos' && env.MACOS_CAN_SIGN == 'false'
+        shell: bash
+        run: |
+          echo "::warning title=UNSIGNED::macOS 构建 UNSIGNED：MACOS_CERT_P12 / MACOS_CERT_PASSWORD / MACOS_KEYCHAIN_PASSWORD 未配置，跳过 codesign 与公证。产物仅供内部测试。"
+
+      - name: 导入 Developer ID 证书到临时 keychain
+        if: matrix.platform == 'macos' && env.MACOS_CAN_SIGN == 'true'
+        shell: bash
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/payoncepdf-signing.keychain-db"
+          CERT="$RUNNER_TEMP/payoncepdf-cert.p12"
+          python3 -c "import base64,os,sys;open(sys.argv[1],'wb').write(base64.b64decode(os.environ['MACOS_CERT_P12']))" "$CERT"
+          security create-keychain -p "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$CERT" -k "$KEYCHAIN" -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          security find-identity -v -p codesigning "$KEYCHAIN"
+          rm -f "$CERT"
+          echo "KEYCHAIN_PATH=$KEYCHAIN" >> "$GITHUB_ENV"
+
+      - name: 逐文件 codesign + 整包签名
+        if: matrix.platform == 'macos' && env.MACOS_CAN_SIGN == 'true'
+        shell: bash
+        run: |
+          APP="src-tauri/target/${{ matrix.target }}/release/bundle/macos/PayOnce PDF.app"
+          test -d "$APP" || { echo "::error::未找到 $APP"; exit 1; }
+          SIGN_IDENTITY="$MACOS_SIGN_IDENTITY"
+          if [ -z "$SIGN_IDENTITY" ]; then
+            SIGN_IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" |
+              grep "Developer ID Application" | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+          fi
+          test -n "$SIGN_IDENTITY" || { echo "::error::无法确定 Developer ID Application 签名身份"; exit 1; }
+          echo "SIGN_IDENTITY=$SIGN_IDENTITY" >> "$GITHUB_ENV"
+          # 1) 逐文件签名嵌套代码（sidecar 与 PDFium dylib），--options runtime 满足公证要求
+          for f in "$APP/Contents/MacOS"/qpdf-* "$APP/Contents/MacOS"/tesseract-*; do
+            [ -f "$f" ] && codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$f"
+          done
+          DYLIB="$APP/Contents/Resources/libpdfium.dylib"
+          [ -f "$DYLIB" ] && codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$DYLIB"
+          # 2) 整包签名
+          codesign --deep --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$APP"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          echo "APP_PATH=$APP" >> "$GITHUB_ENV"
+
+      - name: ditto 暂存 + hdiutil 打 dmg
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          APP="src-tauri/target/${{ matrix.target }}/release/bundle/macos/PayOnce PDF.app"
+          test -d "$APP" || { echo "::error::未找到 $APP"; exit 1; }
+          STAGE="$RUNNER_TEMP/dmg-stage-${{ matrix.arch }}"
+          rm -rf "$STAGE" && mkdir -p "$STAGE"
+          # ditto 原样拷贝 .app（保留代码签名 / 扩展属性 / 资源分支）；
+          # UDIF .dmg 由 hdiutil 依据该暂存目录生成（ditto 本身不产出 dmg）。
+          ditto "$APP" "$STAGE/PayOnce PDF.app"
+          ln -s /Applications "$STAGE/Applications"
+          DMG="src-tauri/target/${{ matrix.target }}/release/bundle/dmg/PayOnce-PDF-${VERSION}-${{ matrix.arch }}.dmg"
+          mkdir -p "$(dirname "$DMG")"
+          hdiutil create -volname "PayOnce PDF" -srcfolder "$STAGE" -ov -format UDZO "$DMG"
+          echo "DMG_PATH=$DMG" >> "$GITHUB_ENV"
+          # 备选：若改为公证 .app 而非 .dmg，可用 ditto -c -k --keepParent "$APP" "$RUNNER_TEMP/PayOnce-PDF-${VERSION}.zip"
+
+      - name: 公证 (xcrun notarytool submit --wait)
+        if: matrix.platform == 'macos' && env.MACOS_CAN_SIGN == 'true' && env.MACOS_CAN_NOTARIZE == 'true'
+        shell: bash
+        run: |
+          xcrun notarytool submit "$DMG_PATH" \
+            --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_PASSWORD" --wait
+
+      - name: staple 公证票据
+        if: matrix.platform == 'macos' && env.MACOS_CAN_SIGN == 'true' && env.MACOS_CAN_NOTARIZE == 'true'
+        shell: bash
+        run: |
+          xcrun stapler staple "$DMG_PATH"
+          APP="src-tauri/target/${{ matrix.target }}/release/bundle/macos/PayOnce PDF.app"
+          xcrun stapler staple "$APP" || echo "::warning::.app staple 失败（dmg 已 staple）"
+          xcrun stapler validate "$DMG_PATH" || true
+
+      - name: 未公证（Apple 凭据未配置）
+        if: matrix.platform == 'macos' && env.MACOS_CAN_SIGN == 'true' && env.MACOS_CAN_NOTARIZE == 'false'
+        shell: bash
+        run: |
+          echo "::warning title=NOTARIZE_SKIPPED::APPLE_ID / APPLE_TEAM_ID / APPLE_APP_PASSWORD 未配置，跳过 notarytool 与 staple。dmg 未经公证，Gatekeeper 会拦截，仅供内部测试。"
+
+      # -------------------------------------------------------------------
+      # 上传制品：整包 bundle + 供 universal 合成的 .app zip
+      # -------------------------------------------------------------------
+      - name: 上传构建制品
+        uses: actions/upload-artifact@v4
+        with:
+          name: payoncepdf-${{ matrix.target }}
+          path: src-tauri/target/${{ matrix.target }}/release/bundle/**
+          if-no-files-found: warn
+
+      - name: 打包 .app 供 universal 合成 (macOS)
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: |
+          cd "src-tauri/target/${{ matrix.target }}/release/bundle/macos"
+          ditto -c -k --sequesterRsrc --keepParent "PayOnce PDF.app" \
+            "$RUNNER_TEMP/PayOnce-PDF-${{ matrix.arch }}.app.zip"
+
+      - name: 上传 .app zip (macOS)
+        if: matrix.platform == 'macos'
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-${{ matrix.target }}
+          path: ${{ runner.temp }}/PayOnce-PDF-${{ matrix.arch }}.app.zip
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # 2) universal macOS 二进制（PRD 8：arm64 + x86_64 合成 universal）
+  #
+  # 分步命令 / 注意事项（如流程需人工拆分时按此执行，workflow 保持可执行）：
+  #   1. 下载 app-aarch64-apple-darwin 与 app-x86_64-apple-darwin 两个 .app.zip 产物；
+  #   2. ditto -x -k 分别解压，得到 ARM_APP / X64_APP；
+  #   3. 从 Info.plist 读 CFBundleExecutable 定位主可执行文件；
+  #   4. lipo -create -output <universal> <arm64 exec> <x64 exec>；
+  #   5. 用 universal 主可执行文件替换 X64_APP 的同类文件作为基底；
+  #   6. 重新逐文件 codesign + 整包 codesign --deep --options runtime（替换主文件后签名失效）；
+  #   7. ditto 暂存 + hdiutil create 产出 universal dmg；
+  #   8. xcrun notarytool submit --wait + xcrun stapler staple。
+  # 注意：
+  #   - 此处只合成**主可执行文件**（PRD 8 要求的通用二进制）。两个 externalBin
+  #     sidecar 与 libpdfium.dylib 仍是单架构；若要完整 universal，需对它们同样
+  #     lipo 合成或随包提供双架构变体，并相应调整 externalBin 命名（TODO）。
+  #   - universal job 复用 build job 的 keychain / 公证步骤（YAML 不便复用步骤，故重复，
+  #     修改时请两处同步）。
+  #   - 若凭据缺失，universal 仍产出 dmg 并明确标注 UNSIGNED / NOTARIZE_SKIPPED。
+  # ---------------------------------------------------------------------------
+  universal:
+    name: universal macOS .app / dmg
+    needs: build
+    runs-on: macos-14
+    env:
+      MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+      MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+      MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+      MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: 下载 arm64 / x64 .app 产物
+        uses: actions/download-artifact@v4
+        with:
+          pattern: app-*
+          path: ${{ runner.temp }}/apps
+          merge-multiple: false
+
+      - name: 判定签名 / 公证方式
+        shell: bash
+        run: |
+          if [ -n "$MACOS_CERT_P12" ] && [ -n "$MACOS_CERT_PASSWORD" ] && [ -n "$MACOS_KEYCHAIN_PASSWORD" ]; then
+            echo "MACOS_CAN_SIGN=true" >> "$GITHUB_ENV"
+          else
+            echo "MACOS_CAN_SIGN=false" >> "$GITHUB_ENV"
+          fi
+          if [ -n "$APPLE_ID" ] && [ -n "$APPLE_TEAM_ID" ] && [ -n "$APPLE_APP_PASSWORD" ]; then
+            echo "MACOS_CAN_NOTARIZE=true" >> "$GITHUB_ENV"
+          else
+            echo "MACOS_CAN_NOTARIZE=false" >> "$GITHUB_ENV"
+          fi
+
+      - name: 解压两份 .app
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/universal/arm64" "$RUNNER_TEMP/universal/x64"
+          ARM_ZIP=$(find "$RUNNER_TEMP/apps/app-aarch64-apple-darwin" -name "*.app.zip" | head -1)
+          X64_ZIP=$(find "$RUNNER_TEMP/apps/app-x86_64-apple-darwin" -name "*.app.zip" | head -1)
+          test -n "$ARM_ZIP" && test -n "$X64_ZIP" || { echo "::error::缺少 .app 产物"; exit 1; }
+          ditto -x -k "$ARM_ZIP" "$RUNNER_TEMP/universal/arm64"
+          ditto -x -k "$X64_ZIP" "$RUNNER_TEMP/universal/x64"
+          test -d "$RUNNER_TEMP/universal/arm64/PayOnce PDF.app" || { echo "::error::arm64 .app 解压失败"; exit 1; }
+          test -d "$RUNNER_TEMP/universal/x64/PayOnce PDF.app" || { echo "::error::x64 .app 解压失败"; exit 1; }
+
+      - name: lipo -create 合成 universal 主可执行文件
+        shell: bash
+        run: |
+          ARM_APP="$RUNNER_TEMP/universal/arm64/PayOnce PDF.app"
+          X64_APP="$RUNNER_TEMP/universal/x64/PayOnce PDF.app"
+          # 用 Info.plist 的 CFBundleExecutable 精确定位主可执行文件，避免硬编码名称
+          EXEC_NAME=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$ARM_APP/Contents/Info.plist")
+          test -n "$EXEC_NAME" || { echo "::error::CFBundleExecutable 为空"; exit 1; }
+          ARM_EXEC="$ARM_APP/Contents/MacOS/$EXEC_NAME"
+          X64_EXEC="$X64_APP/Contents/MacOS/$EXEC_NAME"
+          test -f "$ARM_EXEC" && test -f "$X64_EXEC" || { echo "::error::主可执行文件缺失"; exit 1; }
+          lipo -archs "$ARM_EXEC"; lipo -archs "$X64_EXEC"
+          UNIVERSAL_EXEC="$RUNNER_TEMP/universal/$EXEC_NAME"
+          lipo -create -output "$UNIVERSAL_EXEC" "$ARM_EXEC" "$X64_EXEC"
+          echo "universal archs: $(lipo -archs "$UNIVERSAL_EXEC")"
+          # 以 x64 .app 为基底，替换主可执行文件（签名已失效，下一步重新签）
+          cp "$UNIVERSAL_EXEC" "$X64_APP/Contents/MacOS/$EXEC_NAME"
+          echo "UNIVERSAL_APP=$X64_APP" >> "$GITHUB_ENV"
+
+      - name: 导入 Developer ID 证书到临时 keychain（与 build job 同步）
+        if: env.MACOS_CAN_SIGN == 'true'
+        shell: bash
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/payoncepdf-signing.keychain-db"
+          CERT="$RUNNER_TEMP/payoncepdf-cert.p12"
+          python3 -c "import base64,os,sys;open(sys.argv[1],'wb').write(base64.b64decode(os.environ['MACOS_CERT_P12']))" "$CERT"
+          security create-keychain -p "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$CERT" -k "$KEYCHAIN" -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$MACOS_KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          security find-identity -v -p codesigning "$KEYCHAIN"
+          rm -f "$CERT"
+          echo "KEYCHAIN_PATH=$KEYCHAIN" >> "$GITHUB_ENV"
+
+      - name: universal 重新签名
+        if: env.MACOS_CAN_SIGN == 'true'
+        shell: bash
+        run: |
+          APP="$UNIVERSAL_APP"
+          SIGN_IDENTITY="$MACOS_SIGN_IDENTITY"
+          if [ -z "$SIGN_IDENTITY" ]; then
+            SIGN_IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" |
+              grep "Developer ID Application" | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+          fi
+          test -n "$SIGN_IDENTITY" || { echo "::error::无法确定签名身份"; exit 1; }
+          for f in "$APP/Contents/MacOS"/qpdf-* "$APP/Contents/MacOS"/tesseract-*; do
+            [ -f "$f" ] && codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$f"
+          done
+          DYLIB="$APP/Contents/Resources/libpdfium.dylib"
+          [ -f "$DYLIB" ] && codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$DYLIB"
+          codesign --deep --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$APP"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+
+      - name: universal 未签名（凭据未配置）
+        if: env.MACOS_CAN_SIGN == 'false'
+        shell: bash
+        run: echo "::warning title=UNSIGNED::universal dmg UNSIGNED：MACOS_* 证书未配置，跳过签名与公证。"
+
+      - name: ditto 暂存 + hdiutil 打 universal dmg
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          APP="$UNIVERSAL_APP"
+          STAGE="$RUNNER_TEMP/universal-dmg-stage"
+          rm -rf "$STAGE" && mkdir -p "$STAGE"
+          ditto "$APP" "$STAGE/PayOnce PDF.app"
+          ln -s /Applications "$STAGE/Applications"
+          DMG="src-tauri/target/universal-apple-darwin/release/bundle/dmg/PayOnce-PDF-${VERSION}.dmg"
+          mkdir -p "$(dirname "$DMG")"
+          hdiutil create -volname "PayOnce PDF" -srcfolder "$STAGE" -ov -format UDZO "$DMG"
+          echo "DMG_PATH=$DMG" >> "$GITHUB_ENV"
+
+      - name: universal 公证 (notarytool submit --wait)
+        if: env.MACOS_CAN_SIGN == 'true' && env.MACOS_CAN_NOTARIZE == 'true'
+        shell: bash
+        run: |
+          xcrun notarytool submit "$DMG_PATH" \
+            --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_PASSWORD" --wait
+          xcrun stapler staple "$DMG_PATH"
+          xcrun stapler staple "$UNIVERSAL_APP" || true
+
+      - name: universal 未公证（Apple 凭据未配置）
+        if: env.MACOS_CAN_SIGN == 'true' && env.MACOS_CAN_NOTARIZE == 'false'
+        shell: bash
+        run: echo "::warning title=NOTARIZE_SKIPPED::APPLE_* 未配置，universal dmg 未经公证。"
+
+      - name: 上传 universal dmg
+        uses: actions/upload-artifact@v4
+        with:
+          name: payoncepdf-universal-apple-darwin
+          path: src-tauri/target/universal-apple-darwin/release/bundle/dmg/**
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # 3) verify：纯标准库 fixtures + smoke（不依赖安装包 / 证书 / 账号）
+  # ---------------------------------------------------------------------------
+  verify:
+    name: verify (fixtures + acceptance smoke)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 安装 qpdf（使 A2 合并 / A4 拆分为真实调用）
+        run: |
+          sudo apt-get update -qq || true
+          sudo apt-get install -y qpdf || echo "::warning::qpdf 安装失败；acceptance.py 会把 qpdf 相关项标记 SKIP (manual)。"
+
+      - name: 生成 fixtures
+        run: python scripts/generate-fixtures.py
+
+      - name: 验收 smoke
+        run: python tests/acceptance.py --smoke
+
+      - name: 上传验收报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: acceptance-report
+          path: tests/out/acceptance-report.md
+          if-no-files-found: warn
+
+      - name: PRD 15 发布策略提示
+        run: |
+          echo "PRD 15: Windows 可在 M7 前先发 beta；macOS 在 M7 完成且公证通过后 <=2 周内发布。"
+          echo "本 workflow 只产出/上传制品，不自动发布；发布节奏由人工按 PRD 15 执行。"
+
+# ---------------------------------------------------------------------------
+# TODO / 依赖汇总（启用 CI 前人工核实）
+#   - 已核实（2026-11-16）：qpdf 11.9.1 mingw64 / tessdata_fast(main) /
+#     pdfium-binaries chromium/8152 三个 tgz；Windows tesseract 改由 choco 安装。
+#     上游版本升级前仍需重新核实，或设置 SIDECAR_OFFLINE_DIR 走 --offline。
+#   - TODO(verify-action-inputs): Azure/trusted-signing-action@v0 的输入名与版本。
+#   - TODO: qpdf.exe 依赖 DLL、brew tesseract 依赖 dylib、universal sidecar 架构
+#     （见 src-tauri/bin/README.md）。
+#   - 依赖的 secrets（未配置即跳过签名 / 公证并标注 UNSIGNED）见各 job 的 env 段：
+#     AZURE_CLIENT_ID / AZURE_TENANT_ID / AZURE_CLIENT_SECRET / AZURE_SUBSCRIPTION_ID /
+#     AZURE_CODE_SIGNING_NAME / AZURE_CERT_PROFILE / AZURE_ENDPOINT /
+#     EV_CERT_PFX / EV_CERT_PASSWORD /
+#     MACOS_CERT_P12 / MACOS_CERT_PASSWORD / MACOS_KEYCHAIN_PASSWORD / MACOS_SIGN_IDENTITY /
+#     APPLE_ID / APPLE_TEAM_ID / APPLE_APP_PASSWORD /
+#     TAURI_SIGNING_PRIVATE_KEY / TAURI_SIGNING_PRIVATE_KEY_PASSWORD。
+# ---------------------------------------------------------------------------
