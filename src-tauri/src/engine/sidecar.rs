@@ -270,10 +270,11 @@ pub fn install_language(app: &AppHandle, lang: &str) -> AppResult<String> {
         .into_reader()
         .read_to_end(&mut bytes)
         .map_err(AppError::from)?;
-    if bytes.len() < 50_000 {
-        return Err(AppError::internal(
-            "下载内容过小，不是有效的 .traineddata 文件；已丢弃，未改动现有语言包",
-        ));
+    if let Err(reason) = validate_traineddata(&bytes) {
+        return Err(AppError::ocr_lang(format!(
+            "下载内容不是有效的 OCR 语言包（{}）；已丢弃，未改动现有语言包。",
+            reason
+        )));
     }
     let tmp = user.join(format!("{}.tmp", code));
     let dest = user.join(format!("{}.traineddata", code));
@@ -287,6 +288,34 @@ pub fn install_language(app: &AppHandle, lang: &str) -> AppResult<String> {
         code,
         bytes.len() / 1024
     ))
+}
+
+/// tessdata_fast 语言包的下载内容校验。
+///
+/// 之前只查 `len >= 50_000`：一个足够大的 HTML 错误页 / CDN 占位文件 / 截断下载
+/// 都会写进用户目录，随后 OCR 静默失败。traineddata 是 protobuf 编码，文件头
+/// 以 `0x18`（field 3 / varint）开头，正文含大量 0xFF 填充；这里做结构校验，
+/// 不信任文件名和 HTTP 状态。校验失败一律不落盘。
+fn validate_traineddata(bytes: &[u8]) -> Result<(), &'static str> {
+    if bytes.len() < 50_000 {
+        return Err("文件过小（< 50 KB）");
+    }
+    if bytes.len() > 32 * 1024 * 1024 {
+        return Err("文件异常大（> 32 MB），疑似下载错误");
+    }
+    // tessdata_fast 的 protobuf 头：首字节 0x18（field 3, wire type 0）。
+    if bytes.first() != Some(&0x18) {
+        return Err("文件头不是 traineddata 的 protobuf 标记");
+    }
+    // 真实 traineddata 含大量 0xFF/0x00 填充；HTML/JSON 错误页不会有。
+    if !bytes.iter().any(|b| *b == 0xFF) {
+        return Err("缺少 traineddata 的二进制填充特征（疑似文本错误页）");
+    }
+    let head = &bytes[..bytes.len().min(16)];
+    if head.starts_with(b"<") || head.starts_with(b"{") {
+        return Err("内容以 HTML/JSON 开头，疑似服务端错误页");
+    }
+    Ok(())
 }
 
 fn tessdata_ready(dir: &Path) -> bool {
@@ -444,4 +473,46 @@ pub fn self_check(app: &AppHandle) -> Vec<SidecarInfo> {
 
 fn display(p: &PathBuf) -> String {
     p.to_string_lossy().to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn traineddata_validator_accepts_real_bundled_packs() {
+        for code in ["eng", "chi_sim"] {
+            let p = Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("resources/tessdata")
+                .join(format!("{}.traineddata", code));
+            let Ok(bytes) = std::fs::read(&p) else {
+                eprintln!("随包语言包 {} 不存在，跳过（不视为通过）", code);
+                continue;
+            };
+            assert!(validate_traineddata(&bytes).is_ok(), "真实语言包 {} 被误拒", code);
+        }
+    }
+
+    #[test]
+    fn traineddata_validator_rejects_html_and_truncated() {
+        let mut html = vec![b'<'; 60_000];
+        html.extend_from_slice(b"<!DOCTYPE html><html>404 Not Found</html>");
+        assert!(validate_traineddata(&html).is_err());
+
+        let mut wrong_head = vec![0u8; 60_000];
+        wrong_head[0] = 0x3C; // '<'
+        wrong_head[100] = 0xFF;
+        assert!(validate_traineddata(&wrong_head).is_err());
+
+        let mut no_fill = vec![0x18u8; 60_000];
+        no_fill[100] = b'a'; // 没有 0xFF 填充
+        assert!(validate_traineddata(&no_fill).is_err());
+
+        let tiny = vec![0x18u8; 1_000];
+        assert!(validate_traineddata(&tiny).is_err());
+
+        let mut huge = vec![0x18u8; 33 * 1024 * 1024];
+        huge[100] = 0xFF;
+        assert!(validate_traineddata(&huge).is_err());
+    }
 }

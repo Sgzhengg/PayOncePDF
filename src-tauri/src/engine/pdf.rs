@@ -457,21 +457,26 @@ fn page_scale(iw: f32, ih: f32, pw: f32, ph: f32, margin: f32) -> f32 {
 // F6：签名图片叠加 + 表单填写 / 扁平化
 // ---------------------------------------------------------------------------
 
-fn escape_pdf_string(s: &str) -> String {
-    let mut out = String::new();
+/// 把字段值编码成 Helvetica/WinAnsi 外观流可用的 PDF 字符串字节。
+///
+/// 标准 14 字体不嵌字体，WinAnsi 只能表示 ASCII 与 Latin-1（0xA0–0xFF）。
+/// 以前的做法是把所有非 ASCII 一律压成 '?'——中文填进去、扁平化后变成一串问号，
+/// 用户不知情就拿走了内容被破坏的文件。现在：Latin-1 符号（± ° µ × ÷ 等）
+/// 按单字节正确写出；超出 WinAnsi 的字符返回 Err，由调用方明确拒绝整个扁平化。
+fn winansi_bytes(s: &str) -> Result<Vec<u8>, char> {
+    let mut out = Vec::with_capacity(s.len());
     for c in s.chars() {
         match c {
             '(' | ')' | '\\' => {
-                out.push('\\');
-                out.push(c);
+                out.push(b'\\');
+                out.push(c as u8);
             }
-            c if c.is_ascii() && !c.is_control() => out.push(c),
-            // 限制：使用标准 Helvetica/WinAnsi，不嵌入字体，非拉丁字符（如中文）
-            // 无法在烘焙外观流中正确显示，这里降级为 '?'（见下方说明）。
-            _ => out.push('?'),
+            c if c.is_ascii() && !c.is_control() => out.push(c as u8),
+            c if ('\u{00A0}'..='\u{00FF}').contains(&c) => out.push(c as u8),
+            other => return Err(other),
         }
     }
-    out
+    Ok(out)
 }
 
 fn get_rect(d: &Dictionary) -> Option<[f32; 4]> {
@@ -504,8 +509,13 @@ fn find_page_for_annot(doc: &Document, aid: ObjectId) -> Option<ObjectId> {
 }
 
 /// 把字段值以标准 Helvetica 文本烘焙进指定页的 appearance（content stream）。
-/// 限制：仅文本字段、仅基础拉丁字符、不嵌入字体、不支持多行/复选/单选外观。
+/// 限制：仅文本字段、仅 WinAnsi 可表示字符（ASCII + Latin-1）、不嵌入字体、
+/// 不支持多行/复选/单选外观。非 WinAnsi 字符由 winansi_bytes 在写入前拦下。
 fn bake_text_appearance(doc: &mut Document, page_id: ObjectId, rect: [f32; 4], value: &str) {
+    // fill_and_flatten 已预先校验，这里失败也不写出坏字节。
+    let Ok(value_bytes) = winansi_bytes(value) else {
+        return;
+    };
     let font_id = doc.add_object(dictionary! {
         "Type" => "Font",
         "Subtype" => "Type1",
@@ -526,14 +536,14 @@ fn bake_text_appearance(doc: &mut Document, page_id: ObjectId, rect: [f32; 4], v
     let x = rect[0] + 2.0;
     let y = rect[1] + 2.0;
     let size = ((rect[3] - rect[1]) * 0.6).clamp(6.0, 12.0);
-    let content = format!(
-        "q\nBT\n/FOnce {} Tf\n1 0 0 1 {} {} Tm\n({}) Tj\nET\nQ\n",
-        size,
-        x,
-        y,
-        escape_pdf_string(value)
-    );
-    let _ = doc.add_page_contents(page_id, content.into_bytes());
+    let mut content = format!(
+        "q\nBT\n/FOnce {} Tf\n1 0 0 1 {} {} Tm\n(",
+        size, x, y
+    )
+    .into_bytes();
+    content.extend_from_slice(&value_bytes);
+    content.extend_from_slice(b") Tj\nET\nQ\n");
+    let _ = doc.add_page_contents(page_id, content);
 }
 
 /// 写 /V 并（可选）扁平化：烘焙 appearance + 移除 /AcroForm + 去掉可编辑 widget。
@@ -542,6 +552,18 @@ fn fill_and_flatten(
     fields: &HashMap<String, String>,
     flatten: bool,
 ) -> AppResult<()> {
+    // 扁平化是不可逆的：值烘焙成外观流后字段被移除。写入前先校验所有字段值，
+    // 中文等 WinAnsi 之外的字符必须明确拒绝，绝不能像以前那样压成 '?' 悄悄损坏。
+    if flatten {
+        for (name, value) in fields {
+            if let Err(bad) = winansi_bytes(value) {
+                return Err(AppError::parse(format!(
+                    "字段「{}」的值含无法扁平化的字符「{}」。当前不嵌入字体，只能保留英文、数字与 Latin-1 符号（± ° µ × ÷）；中文等字符扁平化后会永久变成问号，已拒绝且不写出文件。请改用英文，或关闭「扁平化」以保留可编辑字段。",
+                    name, bad
+                )));
+            }
+        }
+    }
     let widget_ids: Vec<ObjectId> = doc
         .objects
         .iter()
@@ -657,4 +679,72 @@ pub fn sign(
     let bytes = save_to_bytes(&mut doc)?;
     std::fs::write(out_tmp, bytes).map_err(AppError::from)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn winansi_encodes_ascii_latin1_and_escapes() {
+        // ASCII 原样；反斜杠与括号转义；Latin-1 符号按单字节写出。
+        assert_eq!(winansi_bytes("Hello").unwrap(), b"Hello");
+        assert_eq!(winansi_bytes("a(b)\\c").unwrap(), b"a\\(b\\)\\\\c");
+        assert_eq!(
+            winansi_bytes("30 ± 4 °C µ × ÷").unwrap(),
+            b"30 \xB1 4 \xB0C \xB5 \xD7 \xF7"
+        );
+    }
+
+    #[test]
+    fn winansi_rejects_cjk_instead_of_turning_into_question_marks() {
+        // 回归：以前中文被悄悄压成 '?'，用户拿走内容已损坏的 PDF 而不知情。
+        let err = winansi_bytes("姓名").unwrap_err();
+        assert_eq!(err, '姓');
+        assert_eq!(winansi_bytes("A中B").unwrap_err(), '中');
+    }
+
+    #[test]
+    fn flatten_refuses_non_winansi_field_value() {
+        // 直接验证 fill_and_flatten 的写入前闸门：中文值必须返回 E1001。
+        let mut doc = Document::with_version("1.4");
+        let pages = doc.new_object_id();
+        let catalog = doc.add_object(dictionary! {
+            "Type" => "Catalog",
+            "Pages" => pages,
+        });
+        doc.trailer.set("Root", catalog);
+        doc.objects.insert(
+            pages,
+            dictionary! {
+                "Type" => "Pages",
+                "Kids" => vec![],
+                "Count" => 0,
+            }
+            .into(),
+        );
+        let mut fields = HashMap::new();
+        fields.insert("name".to_string(), "张三".to_string());
+        let err = fill_and_flatten(&mut doc, &fields, true).unwrap_err();
+        assert_eq!(err.code, "E1001");
+        assert!(err.message.contains("无法扁平化"));
+        assert!(err.message.contains("张三".chars().next().unwrap()));
+
+        // 不扁平化（只写 /V）则不受此闸门限制。
+        assert!(fill_and_flatten(&mut doc, &fields, false).is_ok());
+    }
+
+    #[test]
+    fn flatten_accepts_latin1_field_value() {
+        let mut doc = Document::with_version("1.4");
+        let pages = doc.new_object_id();
+        let catalog = doc.add_object(dictionary! {
+            "Type" => "Catalog",
+            "Pages" => pages,
+        });
+        doc.trailer.set("Root", catalog);
+        let mut fields = HashMap::new();
+        fields.insert("temp".to_string(), "30 ± 4 °C".to_string());
+        assert!(fill_and_flatten(&mut doc, &fields, true).is_ok());
+    }
 }

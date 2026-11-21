@@ -493,7 +493,7 @@ pub fn sign_pdf(payload: SignRequest, app: AppHandle) -> Result<JobResult, AppEr
         state::atomic_commit(&tmp_out, &final_path)?;
 
         let msg = if payload.flatten_fields {
-            "签名完成；表单已扁平化（外观流为标准 Helvetica，中文/复选框外观受限，见实现注释）"
+            "签名完成；表单已扁平化。外观流用标准 Helvetica，支持英文/数字/Latin-1 符号；含中文等值会明确拒绝，不会静默变成问号"
         } else {
             "签名完成；表单字段已写入 /V"
         };

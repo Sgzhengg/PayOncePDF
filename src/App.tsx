@@ -411,6 +411,12 @@ export default function App() {
   // 本次会话由本工具生成的 _edited 产物绝对路径；只有它们允许被原地继续修改。
   // 用 ref 而不是 state：判断发生在点击回调里，不需要触发重渲染。
   const ownEditedRef = useRef<Set<string>>(new Set());
+  // 换输入 / 切工具 / 取消任务时必须一起清掉这两个链式状态，否则残留的
+  // chainableResultPath 可能让新结果误开启「可继续框选」，出现「看着 A 却改了 B」。
+  const resetChainState = useCallback(() => {
+    setChainableResultPath(null);
+    ownEditedRef.current.clear();
+  }, []);
   const [dialog, setDialog] = useState<DialogView | null>(null);
   const [license, setLicense] = useState<LicenseState | null>(null);
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
@@ -525,6 +531,7 @@ export default function App() {
   const addItems = useCallback((items: InputItem[]) => {
     if (items.length === 0) return;
     setResultFile(null); // 新输入加入后回到输入预览，避免停留在上一次的输出文件
+    resetChainState();
     setFiles((prev) => {
       const next = [...prev];
       items.forEach((item, i) => {
@@ -554,10 +561,12 @@ export default function App() {
   );
 
   const removeFile = useCallback((id: string) => {
+    resetChainState();
     setFiles((prev) => prev.filter((f) => f.id !== id));
-  }, []);
+  }, [resetChainState]);
 
   const moveFile = useCallback((id: string, direction: -1 | 1) => {
+    resetChainState();
     setFiles((prev) => {
       const i = prev.findIndex((f) => f.id === id);
       const j = i + direction;
@@ -570,7 +579,10 @@ export default function App() {
     });
   }, []);
 
-  const clearFiles = useCallback(() => setFiles([]), []);
+  const clearFiles = useCallback(() => {
+    resetChainState();
+    setFiles([]);
+  }, [resetChainState]);
 
   const sortByName = useCallback(() => {
     setFiles((prev) => [...prev].sort((a, b) => a.name.localeCompare(b.name)));
@@ -607,6 +619,7 @@ export default function App() {
     const label = action.find.length > 18 ? `${action.find.slice(0, 18)}…` : action.find;
     const pageStr = String(action.page);
     setResultFile(null);
+    resetChainState();
     if (action.tool === "edit") {
       setActiveTool("edit");
       setParams((prev) => ({
@@ -666,7 +679,11 @@ export default function App() {
     setOutputs([]);
     // F19 连续编辑：预览正在显示的文件就是本次要改的文件，中途不能退回输入，
     // 否则预览会重新加载输入文件并把页码重置为 1，用户每改一处就被弹回首页。
-    if (!opts?.keepPreview) setResultFile(null);
+    if (!opts?.keepPreview) {
+      setResultFile(null);
+      // 新任务（非连续编辑）与旧结果及其链式权限彻底脱钩。
+      resetChainState();
+    }
     setProgress({ done: 0, total: 0, message: "准备中…" });
     try {
       const { cmd, payload } = build(jobId);
@@ -960,20 +977,30 @@ export default function App() {
               // 回到原件后再改，是从原件重新开始，会另存为新结果（旧结果保留），
               // 不再累积到之前那份 _edited 上。说清楚，别让用户以为改动丢了。
               if (ownEditedRef.current.size > 0) {
+                // 提示后再清：用户已明确离开结果态，链式权限随之失效。
                 setStatusText(
                   "已回到原始文件。继续框选修改会另存为新结果，之前的 _edited 文件保留、不会被覆盖。",
                 );
               }
+              resetChainState();
             }}
             onApplySelection={applySelection}
             onRectEdit={runRectEdit}
             onUsePage={(n) => {
+              const tool = activeTool as keyof ParamsState;
+              const cur = params[tool] as unknown as Record<string, unknown> | undefined;
+              // 有些工具（合并 / 压缩 / 签名 / 创建 / 分享 / 批量）根本没有页码参数。
+              // 以前无脑提示「已填入」其实什么都没改——现在如实说明，不给假成功。
+              if (!cur || !("pages" in cur)) {
+                setStatusText(
+                  `「${ALL_TOOLS.find((t) => t.id === activeTool)?.label ?? activeTool}」不使用页码，无需填写`,
+                );
+                return;
+              }
               setParams((prev) => {
-                const cur = prev[activeTool as keyof ParamsState] as unknown as
-                  | Record<string, unknown>
-                  | undefined;
-                if (!cur || !("pages" in cur)) return prev;
-                return { ...prev, [activeTool]: { ...cur, pages: String(n) } } as ParamsState;
+                const p = prev[tool] as unknown as Record<string, unknown> | undefined;
+                if (!p || !("pages" in p)) return prev;
+                return { ...prev, [tool]: { ...p, pages: String(n) } } as ParamsState;
               });
               setStatusText(`已把第 ${n} 页填入右侧参数面板`);
             }}

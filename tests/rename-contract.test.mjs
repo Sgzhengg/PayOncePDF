@@ -137,7 +137,10 @@ test('产物命名脚本与迁移说明存在', () => {
   assert.match(read('scripts/rename-bundles.mjs'), /PayOnce-PDF-Setup-/);
   assert.match(read('scripts/rename-bundles.mjs'), /PayOnce-PDF-\$\{version\}\.dmg/);
   assert.ok(fs.existsSync(path.join(ROOT, 'docs/RENAME-MIGRATION.md')));
-  assert.match(read('package.json'), /"test": "node --test tests\/rename-contract\.test\.mjs tests\/selection-geometry\.test\.mjs"/);
+  assert.match(
+    read('package.json'),
+    /"test": "node --test tests\/rename-contract\.test\.mjs tests\/selection-geometry\.test\.mjs(?: tests\/[a-z-]+\.test\.mjs)*"/,
+  );
 });
 
 test('F18 画布框选联动：后端命令、坐标口径、前端联动与唯一性守卫', () => {

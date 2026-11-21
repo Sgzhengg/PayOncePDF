@@ -1254,3 +1254,40 @@ const canSelect = ... && !resultMode; // 结果预览时源仍是输入文件，
 **哈希链路**：`0fe2fe3c…3757` → `4bbd7d4a…2d08` → `b16bd927…18e9` → `1fa562fc…d669` → `c9374790…b81d` → `6669b77f…82fa` → `7f986bee…899e` → **`31a432d4…59ac4`（本轮）**。前七个均已失效。
 
 **打包踩坑**：`tauri build` 报 `os error 32`（另一个程序正在使用此文件）——已安装的 `payoncepdf.exe`（PID 44372）还开着，锁住了 sidecar。先 `taskkill /F /PID` 再构建；正常关闭信号无效（窗口未响应）。重建命令同 §25.8，需带 `TAURI_SIGNING_PRIVATE_KEY` / `_PASSWORD`，否则出包但缺 `.sig`。
+
+## 30. 竞品对标审查与 4 项缺陷修复（2026-11-21 20:50）
+
+用户要求「详细查看哪些功能还没完善好，拿竞品对比，找出缺陷并修改完善」。完整报告（竞品格局、逐条分级、未修理由）见 `docs/defect-review-2026-11-21.md`。
+
+### 30.1 本轮修复
+
+| 编号 | 缺陷 | 修法 | 回归测试 |
+|---|---|---|---|
+| D1 | F19 链式状态残留，可能「看着 A 改了 B」 | 统一 `resetChainState()`，7 个入口全清；连续编辑白名单保留 | `tests/defect-regression.test.mjs` 静态锁 7 入口 |
+| D2 | `onUsePage` 对无页码工具假成功 | 先判 `pages` 字段，无则如实提示 | 同上，失败/成功两分支文案 |
+| D3 | 表单扁平化中文静默变 `?`（数据损坏） | `winansi_bytes()`：Latin-1 正确写出、非 WinAnsi 写入前拒绝 E1001 | Rust +4 |
+| D4 | OCR 下载只查大小，错误页落盘 | `validate_traineddata()` 魔数 + 结构校验，失败 E1006 | Rust +2（含真实包防误杀） |
+
+### 30.2 验证数字
+
+- `cargo test --lib` **65 PASS / 0 FAIL**（原 59 + 6）；`npm test` **32 PASS / 0 FAIL**（原 28 + 4；同时放宽 `rename-contract` 对 test 脚本的硬编码断言）。
+- `tsc --noEmit` / `npm run build` 通过；UI 交互冒烟（CDP 9222）**24 PASS / 0 FAIL**。
+- `cargo test` 必须用项目随带工具链 + `CARGO_BUILD_JOBS=1`；全局工具链并发编译时 `crossbeam-epoch` 触发 `STATUS_ACCESS_VIOLATION`，属环境差异。
+
+### 30.3 明确未修（诚实）
+
+发布链路（Authenticode、生产 minisign、更新端点、激活/售卖、macOS 包）需外部基础设施；真机 73 条仍 0 执行；文档比对 / WYSIWYG / 高保真 Office / AI / 嵌套书签 / 复选表单 / 合并书签 / 旋转页框选按 PRD §19 暂缓或工作量中，属产品策略而非本轮可修缺陷。详见 defect-review §2.2 / §5。
+
+真机用例 **73 → 74**（`RD-G0-22`：表单填中文后勾选扁平化，须明确报错且不产出文件；填 `30 ± 4 °C` 须扁平化成功且符号正常）。
+
+### 30.4 本轮产物（含 4 项缺陷修复，当前唯一有效包）
+
+| 产物 | 大小 / 校验 |
+|---|---|
+| `src-tauri/target/release/bundle/nsis/PayOnce-PDF-Setup-1.0.0.exe` | **31,669,539 B（30.20 MiB）**，SHA-256 `84121674d22998733c9beaa05dab8e8aeeae2db3d05f53ae5ad26387ddbb5be6` |
+| 同目录 `.sig` | ① 文件签名 ② 全局签名 ③ 1 bit 负向自检 **三段 OK**，key id `654e340d1fe4b8e5` |
+| `scripts/preflight-real-device.py` | **PASS 26 / WARN 4 / BLOCK 0 / FAIL 0**；`INSTALLER_SHA256` 已同步 |
+
+**哈希链路**：… → `7f986bee…899e` → `31a432d4…59ac4` → **`84121674…bb5be6`（本轮）**。此前所有哈希均已失效。
+
+**打包踩坑（复现）**：又有运行中的 `payoncepdf.exe`（PID 14484）锁住 sidecar，`tauri build` 会报 `os error 32`；正常 `taskkill` 无效，须 `taskkill /F` 后再构建。
