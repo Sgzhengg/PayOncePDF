@@ -421,6 +421,22 @@ select {
   margin: 4px 0;
 }
 
+/* 书签层级树：去圆点、紧凑行距，用 padding-left 表达父子层级 */
+.bm-tree {
+  list-style: none;
+  padding-left: 0;
+  margin-left: 0;
+  max-height: 180px;
+  overflow: auto;
+}
+.bm-tree li {
+  line-height: 1.7;
+  border-bottom: 1px dashed var(--border);
+}
+.bm-level {
+  color: var(--accent, #5b8def);
+}
+
 /* ---------- 右侧参数面板 ---------- */
 .params {
   min-height: 0;

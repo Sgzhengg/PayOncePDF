@@ -83,7 +83,7 @@
       <div class="card feature"><span class="kicker">10 / 页面</span><b>页面管理</b><p>旋转、删除、抽取、插入空白页、裁剪（改 /CropBox，可还原），不重排版面。</p></div>
       <div class="card feature"><span class="kicker">11 / 水印</span><b>水印与保护</b><p>加水印、页眉页脚、页码与文档属性，设置 AES-256 打开密码与权限位。<strong>水印文字支持中文</strong>（系统 CJK 字体嵌入，写进真实文本层）；页眉页脚仍限拉丁字符。</p></div>
       <div class="card feature"><span class="kicker">12 / 导出</span><b>可编辑文字稿</b><p>本机生成 TXT / HTML / DOCX / XLSX。诚实边界：只导出文字层，不还原表格、图片与版式。</p></div>
-      <div class="card feature"><span class="kicker">13 / 文档对象</span><b>表单 / 脱敏 / 书签</b><p>创建可填写的 AcroForm 文本域；<strong>真脱敏</strong>（先删文字对象再盖黑框，复制粘贴也取不到原文）；顶层书签查看、新建、重命名与删除。</p></div>
+      <div class="card feature"><span class="kicker">13 / 文档对象</span><b>表单 / 脱敏 / 书签</b><p>创建可填写的 AcroForm 文本域；<strong>真脱敏</strong>（先删文字对象再盖黑框，复制粘贴也取不到原文）；多级书签查看、新建、重命名与删除（层级由清单行首 `>` 决定）。</p></div>
       <div class="card feature"><span class="kicker">14 / 文本转 PDF</span><b>TXT / CSV / HTML 转 PDF</b><p>把纯文本排成 A4 PDF，中文用系统 CJK 字体嵌入。诚实边界：纯文本排版，不还原 Office 版式、表格与图片。</p></div>
       <div class="card feature"><span class="kicker">15 / 打印与扩展</span><b>打印 / 邮件 / 语言包</b><p>交给系统默认阅读器打印、用邮件客户端预填主题正文；按需安装 42 种 OCR 语言包（<strong>唯一运行时联网点，请求只含语言代码</strong>）。打印无应用内预览，邮件附件需手动添加。</p></div>
     </div>
@@ -120,7 +120,7 @@
           <li><b>移动端</b>：仅桌面端，Windows 10/11 与 macOS 11+。</li>
           <li><b>企业 SSO / 审计</b>：无账号、无目录集成、无集中日志。</li>
           <li><b>「AI 聊天读 PDF」</b>：不做。部分免费编辑器会把文档内容发到云端大模型；我们拒绝增加任何<strong>云端文件处理</strong>路径，因为「文件内容绝不出本机」正是免费工具给不了的承诺。</li>
-          <li><b>类 Word 之外的对象编辑、图章绘图、复选框/单选/下拉表单域</b>：不做。 v1 的表单创建只提供文本域，书签只做顶层，详见 <a href="faq.html">FAQ</a>。</li>
+          <li><b>类 Word 之外的对象编辑、图章绘图、复选框/单选/下拉表单域</b>：不做。 v1 的表单创建只提供文本域，书签支持多级（层级由清单文本决定、无拖放换父级），详见 <a href="faq.html">FAQ</a>。</li>
           <li><b>应用内打印预览、邮件自动附加附件</b>：不做；打印交给系统阅读器，邮件附件需在客户端手动添加。</li>
         </ul>
       </div>

@@ -51,8 +51,8 @@
 | `export_pdf` | `ExportRequest` → `JobResult` | **F14** TXT/HTML/DOCX/XLSX 文字层导出 |
 | `create_form_pdf` | `FormRequest` → `JobResult` | **F15** 创建 AcroForm 文本域 |
 | `redact_pdf` | `RedactRequest` → `JobResult` | **F15** 真脱敏（删文字对象 + 黑框） |
-| `list_bookmarks` | `BookmarkQuery` → `Vec<BookmarkEntry>` | **F15** 只读列出顶层书签（不占导出授权、不发进度事件） |
-| `manage_bookmarks` | `BookmarkRequest` → `JobResult` | **F15** 顶层书签 set/add/rename/delete |
+| `list_bookmarks` | `BookmarkQuery` → `Vec<BookmarkEntry>` | **F15** 只读列出书签（含层级 `level`，不占导出授权、不发进度事件） |
+| `manage_bookmarks` | `BookmarkRequest` → `JobResult` | **F15** 多级书签 set/add/rename/delete（spec 行首 `>` 表层级） |
 | `text_to_pdf` | `TextToPdfRequest` → `JobResult` | **F16** TXT/CSV/HTML → PDF（纯文本排版，中文嵌入系统 CJK 字体） |
 | `share_file` | `ShareRequest` → `JobResult` | **F16** 系统打印 / mailto 邮件（`outputs` 为空数组） |
 | `list_ocr_languages` | `{}` → `Vec<OcrLanguageInfo>` | **F16** 只读列出 42 种语言及安装状态 |
@@ -168,7 +168,7 @@ src-tauri/src/
 │  ├─ pdf.rs         # lopdf：图片→PDF、压缩重编码、签名图章、表单填写/扁平化
 │  ├─ ocr.rs         # tesseract CLI：可搜索 PDF / TXT
 │  ├─ extras.rs      # F10–F14：改字/批注/页管理/装饰/导出 + 真实 PDF 文件级单测
-│  ├─ objects.rs     # F15：AcroForm 文本域 / 真脱敏 / 顶层书签
+│  ├─ objects.rs     # F15：AcroForm 文本域 / 真脱敏 / 多级书签
 │  └─ more.rs        # F16：TXT/CSV/HTML→PDF、中文水印（系统 CJK 字体嵌入）
 └─ commands/
    ├─ mod.rs
@@ -337,7 +337,7 @@ export interface OcrLanguageInfo { code: string; label: string; installed: boole
 
 1. **F15 表单**：仅创建 AcroForm **文本域**（单行/多行/必填），写入 Widget 注解 + `/FT /Tx` + `/NeedAppearances true`（由阅读器生成外观）；**不覆盖既有表单字段**；无复选框/单选/下拉/计算脚本/签名域。
 2. **F15 脱敏**：先真删除文字对象再盖黑框，**复制粘贴也取不到原文**；只处理可选中文本，扫描件需先 OCR；不是「只盖一层黑框」。
-3. **F15 书签**：只做**顶层书签**（`level = 1`），`set/add/rename/delete` 通过重建 `/Outlines` 实现；页面增删后书签**不自动跟随页号**；中文标题用 UTF-16BE + BOM 写入。
+3. **F15 书签**：支持**多级书签**，spec 每行 `[>...]页码 标题`，行首 `>` 数量 = 层级（无 `>` 一级、`>` 二级、`>>` 三级），旧「页码 标题」格式仍是一级；层级跳跃（父级不存在）报错。`set/add/rename/delete` 用 parent 栈重建 `/Outlines`、**任何操作都不压平已有层级**；不支持界面拖放换父级；页面增删后书签**不自动跟随页号**；中文标题用 UTF-16BE + BOM 写入。
 4. **F16 文本转 PDF**：TXT/CSV/HTML → A4 PDF，每页 45 行、11pt 自动分页；中文用**系统 CJK TrueType 字体嵌入**（Windows 优先 `C:/Windows/Fonts/simhei.ttf`）。HTML **只剥离标签，不执行脚本、不渲染 CSS**；找不到系统 CJK 字体时明确报错，不写方框/乱码。**纯文本排版，不还原 Office 版式、表格与图片**。
 5. **F16 打印/邮件**：打印用 Windows `Start-Process -FilePath <path> -Verb Print` / macOS `lp`，**无应用内打印预览**；邮件为 `mailto:?subject=...&body=...` 预填主题与正文，**附件需在客户端手动添加**；两者都不上传文件。
 6. **F16 中文水印**：见 §10.4 第 4 条（水平居中灰字，字号生效，角度/不透明度不生效）。

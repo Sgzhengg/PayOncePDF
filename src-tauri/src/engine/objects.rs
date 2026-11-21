@@ -8,9 +8,10 @@
 //!   不做复选框/单选/下拉/计算脚本，也不做数字签名域。
 //! - 脱敏：**先真删除文字对象**再盖黑框，不是只画一层黑矩形（那样复制仍能取到原文）。
 //!   只处理有文字层的可选中文本；扫描件需先 F5 OCR；框位置来自文字命中矩形。
-//! - 书签：F15 书签管理只做顶层（set/add/rename/delete 全部重建为一级）；
-//!   但 F1 合并的 `merge_bookmarks` 会保留源文件原有层级。重建 /Outlines 后旧对象
-//!   成为孤儿，不影响渲染；页面增删后书签不自动跟随页号。
+//! - 书签：F15 书签管理支持多级（spec 行首 `>` 表示子级，set/add/rename/delete
+//!   全程用 parent 栈还原层级，不会把已有层级压平）；F1 合并的 `merge_bookmarks`
+//!   同样保留源文件原有层级。重建 /Outlines 后旧对象成为孤儿，不影响渲染；
+//!   页面增删后书签不自动跟随页号；不支持拖放换父级（层级由 spec 文本决定）。
 
 use crate::engine::{extras, pdf, JobCtx};
 use crate::error::{AppError, AppResult};
@@ -325,21 +326,27 @@ pub fn list_bookmarks(path: &Path, password: Option<&str>) -> AppResult<Vec<Book
     }
 }
 
-/// 每行 `页码 标题`，例如 `3 第三章 交付验收`；标题允许含空格。
+/// 每行 `[>...]页码 标题`，例如 `3 第三章 交付验收`；标题允许含空格。
+/// 行首 `>` 数量表示层级：无 `>` = 一级，`>` = 二级，`>>` = 三级，依此类推。
+/// 纯 `页码 标题`（旧格式）仍是一级，完全向后兼容。
+/// 层级不得跳跃（第一行必须一级，子级的父级必须已存在）；跳跃即报错，避免挂到错误父节点。
 pub fn parse_bookmark_spec(spec: &str, total: u32) -> AppResult<Vec<BookmarkEntry>> {
     let mut out = Vec::new();
+    let mut prev_level = 0u32;
     for (i, line) in spec.lines().enumerate() {
         let line = line.trim();
         if line.is_empty() {
             continue;
         }
-        let mut parts = line.splitn(2, char::is_whitespace);
+        let level_raw = line.bytes().take_while(|&b| b == b'>').count() as u32 + 1;
+        let rest = line.trim_start_matches('>').trim_start();
+        let mut parts = rest.splitn(2, char::is_whitespace);
         let page: u32 = parts
             .next()
             .unwrap_or("")
             .trim()
             .parse()
-            .map_err(|_| AppError::internal(format!("书签第 {} 行格式应为「页码 标题」", i + 1)))?;
+            .map_err(|_| AppError::internal(format!("书签第 {} 行格式应为「[>]页码 标题」", i + 1)))?;
         let title = parts.next().unwrap_or("").trim().to_string();
         if title.is_empty() {
             return Err(AppError::internal(format!("书签第 {} 行缺少标题", i + 1)));
@@ -350,7 +357,18 @@ pub fn parse_bookmark_spec(spec: &str, total: u32) -> AppResult<Vec<BookmarkEntr
                 i + 1, page, total
             )));
         }
-        out.push(BookmarkEntry { level: 1, title, page });
+        if level_raw > prev_level + 1 {
+            return Err(AppError::internal(format!(
+                "书签第 {} 行层级跳跃（第 {} 级没有父书签，上一行是第 {} 级）",
+                i + 1, level_raw, prev_level
+            )));
+        }
+        prev_level = level_raw;
+        out.push(BookmarkEntry {
+            level: level_raw,
+            title,
+            page,
+        });
     }
     Ok(out)
 }
@@ -413,15 +431,24 @@ pub fn manage_bookmarks(
     }
 
     // 重建 /Outlines：lopdf 的 add_bookmark + build_outline 会生成完整链式字典。
+    // 用 parent 栈把每条书签挂到它上一级的最后一条上——这是 list_bookmarks 读得到
+    // 层级、merge_bookmarks 也保得住层级的关键；此前这里传 None，导致任何一次
+    // set/add/rename/delete 都把合并保住的层级重新压平成一整列顶层书签。
     let mut added = 0usize;
+    let mut stack: Vec<(u32, u32)> = Vec::new(); // (level, bookmark id) —— lopdf add_bookmark 的 parent 用 u32
     for e in &entries {
         let Some(&pid) = pages.get(&e.page) else {
             continue;
         };
-        doc.add_bookmark(
+        while stack.last().is_some_and(|(l, _)| *l >= e.level) {
+            stack.pop();
+        }
+        let parent = stack.last().map(|(_, id)| *id);
+        let id = doc.add_bookmark(
             Bookmark::new(e.title.clone(), [0.0, 0.0, 0.0], 0, pid),
-            None,
+            parent,
         );
+        stack.push((e.level, id));
         added += 1;
     }
     if let Some(outline_id) = doc.build_outline() {
@@ -437,9 +464,13 @@ pub fn manage_bookmarks(
         return Err(AppError::internal("书签写入失败：未能构建 /Outlines"));
     }
     write_doc(&mut doc, out_tmp)?;
+    let deepest = entries.iter().map(|e| e.level).max().unwrap_or(1);
     Ok((
         added,
-        format!("书签 {} → {} 条，重建顶层 /Outlines", before, added),
+        format!(
+            "书签 {} → {} 条，重建 /Outlines（最深 {} 级）",
+            before, added, deepest
+        ),
     ))
 }
 
@@ -657,11 +688,99 @@ mod tests {
     }
 
     #[test]
+    fn manage_bookmarks_keeps_nested_levels_across_operations() {
+        // 先造一个带真实层级的源 PDF（顶层 + 子级 + 孙级 + 第二个顶层）
+        let dir = std::env::temp_dir().join(format!("payoncepdf_bmlvl_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let src = dir.join("src.pdf");
+        let set_out = dir.join("set.pdf");
+        let rename_out = dir.join("rename.pdf");
+        std::fs::write(
+            &src,
+            pdf_with_bookmarks(
+                5,
+                &[
+                    (1, "封面", None),
+                    (2, "第一章", Some(0)),
+                    (3, "1.1 背景", Some(1)),
+                    (4, "附录", None),
+                ],
+            ),
+        )
+        .unwrap();
+        assert_eq!(
+            list_bookmarks(&src, None).unwrap().iter().map(|e| e.level).collect::<Vec<_>>(),
+            vec![1, 2, 3, 1]
+        );
+
+        // set 用带层级的 spec 整体替换，层级必须写回而不是压成一级
+        let (n, msg) = manage_bookmarks(
+            &src,
+            None,
+            "set",
+            "1 封面\n2 第一章\n> 3 1.1 目标\n>> 4 1.1.1 范围\n5 附录",
+            "",
+            "",
+            &set_out,
+        )
+        .unwrap();
+        assert_eq!(n, 5, "{msg}");
+        let levels = list_bookmarks(&set_out, None).unwrap().iter().map(|e| e.level).collect::<Vec<_>>();
+        assert_eq!(levels, vec![1, 1, 2, 3, 1], "set 后的层级应保持，不能压平");
+
+        // 再改一次（rename 子级）：上轮修的「改一次就丢层级」不能复发
+        manage_bookmarks(
+            &set_out,
+            None,
+            "rename",
+            "",
+            "1.1 目标",
+            "1.1 范围与目标",
+            &rename_out,
+        )
+        .unwrap();
+        let after = list_bookmarks(&rename_out, None).unwrap();
+        assert_eq!(
+            after.iter().map(|e| e.level).collect::<Vec<_>>(),
+            vec![1, 1, 2, 3, 1],
+            "rename 后层级必须原样保住"
+        );
+        assert_eq!(after[2].title, "1.1 范围与目标");
+
+        // 合并产物（本就带层级）经 set 再写，层级不塌
+        let merged_like = dir.join("merged_like.pdf");
+        manage_bookmarks(&src, None, "set", "1 封面\n> 2 第一章\n> 3 附录", "", "", &merged_like).unwrap();
+        manage_bookmarks(&merged_like, None, "delete", "", "附录", "", &rename_out).unwrap();
+        let trimmed = list_bookmarks(&rename_out, None).unwrap();
+        assert_eq!(trimmed.iter().map(|e| e.level).collect::<Vec<_>>(), vec![1, 2]);
+    }
+
+    #[test]
     fn bookmark_spec_validates_page_range() {
         assert_eq!(parse_bookmark_spec("1 A\n3 B", 3).unwrap().len(), 2);
         assert!(parse_bookmark_spec("4 C", 3).is_err());
         assert!(parse_bookmark_spec("abc D", 3).is_err());
         assert!(parse_bookmark_spec("1 ", 3).is_err());
+    }
+
+    #[test]
+    fn bookmark_spec_parses_and_validates_levels() {
+        // 旧格式（纯「页码 标题」）仍是一级，完全向后兼容
+        let flat = parse_bookmark_spec("1 A\n3 B", 3).unwrap();
+        assert_eq!(flat.iter().map(|e| e.level).collect::<Vec<_>>(), vec![1, 1]);
+        // 行首 > 数量 = 层级，标题里的空格与 > 不受影响
+        let nested = parse_bookmark_spec("1 总览\n> 2 章节\n>> 3 3.1 > 重点\n> 4 第二章", 4).unwrap();
+        assert_eq!(
+            nested.iter().map(|e| e.level).collect::<Vec<_>>(),
+            vec![1, 2, 3, 2]
+        );
+        assert_eq!(nested[2].title, "3.1 > 重点");
+        assert_eq!(nested[3].title, "第二章");
+        // 层级跳跃拒绝：第一行就是子级、或跳过一级直接到孙级
+        assert!(parse_bookmark_spec("> 1 孤儿", 3).is_err());
+        assert!(parse_bookmark_spec("1 A\n>> 2 跳级", 3).is_err());
+        // 相邻同级 / 正常降级都允许
+        assert!(parse_bookmark_spec("1 A\n2 B\n> 3 C\n>> 4 D\n> 5 E\n6 F", 6).is_ok());
     }
 
     /// 用 lopdf 直接造带层级的书签文件（manage_bookmarks 只能造顶层，不够用）。

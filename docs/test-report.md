@@ -1371,4 +1371,39 @@ F18 此前把内容流坐标字符框直接回传，前端按「屏幕→显示 
 | 同目录 `.sig` | ① 文件签名 ② 全局签名 ③ 1 bit 负向自检 **三段 OK** |
 | `scripts/preflight-real-device.py` | **PASS 26 / WARN 4 / BLOCK 0 / FAIL 0**；`INSTALLER_SHA256` 已同步 |
 
-**哈希链路**：… → `84121674…bb5be6` → `176bf902…2b6bf` → **`e2849b8e…6e58c`（本轮）**。此前所有哈希均已失效。
+**哈希链路**：… → `84121674…bb5be6` → `176bf902…2b6bf` → `e2849b8e…6e58c` → **`452ac5d5…bcd1`（本轮）**。此前所有哈希均已失效。
+
+---
+
+## 33. 书签管理支持多级层级（2026-11-21 23:00）
+
+> 触发：用户再次「继续」，从 defect-review §5 待办挑出 **F15 书签界面层级编辑**——§31 让合并保住了层级，但管理界面仍只会造顶层，属半截功能 + 数据丢失。
+
+### 33.1 根因
+
+- `parse_bookmark_spec` 硬编码 `level: 1`，spec 无法表达子级；
+- `manage_bookmarks` 重建 `/Outlines` 时对每条书签 `add_bookmark(..., None)`，`list_bookmarks` 读出的 `level` 被丢弃；
+- 结果：合并保住的层级，只要用书签管理做一次 set/add/rename/delete 就被压平成一整列顶层书签。前端提示还明写「只做顶层书签」。
+
+### 33.2 改法
+
+| 层 | 改动 |
+|---|---|
+| spec 解析 | 格式扩展为 `[>...]页码 标题`，行首 `>` 数量 = 层级（无 `>` 一级 / `>` 二级 / `>>` 三级），旧「页码 标题」完全兼容；层级跳跃（父级不存在）报错，不静默挂错父节点 |
+| 写回 | `manage_bookmarks` 用 `(level, id)` parent 栈把每条挂到上一级最后一条，`add_bookmark` 传 parent；rename/delete 读回的 level 原样带出，任何操作都不压平 |
+| 前端 | 提示「只做顶层书签」→「支持多级书签」；spec 输入说明 `>`/`>>` 与不可跳跃；读取结果按 level 缩进、展示最深层级 |
+| 文档 | CONTRACT / PRD / README / 用户手册 / 竞品矩阵 / 站点首页 / 真机计划同步更新过时表述 |
+
+### 33.3 验证
+
+- `cargo test --lib` **79 PASS / 0 FAIL**（原 77 + 2）：`bookmark_spec_parses_and_validates_levels`（旧格式兼容、层级解析、标题含 `>`、跳跃拒绝、同级/降级允许）；`manage_bookmarks_keeps_nested_levels_across_operations`（真实带层级 PDF → set 带层级 spec → 读回 level `[1,1,2,3,1]` → rename → 层级不压平 → delete 子级后仍保层级）。
+- `npm test` **34 PASS / 0 FAIL**（原 32 + 2 缺陷契约：`tests/defect-regression.test.mjs` 锁定 parent 栈写回、spec 层级解析、前端多级提示与缩进）；`tsc --noEmit` / `npm run build` 通过；UI 交互冒烟 **24 PASS / 0 FAIL**。
+- 仍是引擎级 + 无头浏览器证据，**真机 0/77 执行**（新增 `RD-G0-25`）；层级由 spec 文本决定、不支持界面拖放换父级（诚实边界）。
+
+### 33.4 本轮产物（含多级书签，当前唯一有效包）
+
+| 产物 | 大小 / 校验 |
+|---|---|
+| `src-tauri/target/release/bundle/nsis/PayOnce-PDF-Setup-1.0.0.exe` | **31,671,628 B（30.20 MiB）**，SHA-256 `452ac5d55f67b437c831bdb0bc6e340c0d62ed2ebdc0d4fc159d0957da82bcd1` |
+| 同目录 `.sig` | ① 文件签名 ② 全局签名 ③ 1 bit 负向自检 **三段 OK** |
+| `scripts/preflight-real-device.py` | **PASS 26 / WARN 4 / BLOCK 0 / FAIL 0**；`INSTALLER_SHA256` 已同步 |

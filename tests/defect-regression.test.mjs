@@ -76,3 +76,32 @@ test('OCR 语言包下载做结构校验，不信任文件名和大小', () => {
   // 旧的「只查大小」逻辑必须移除
   assert.doesNotMatch(s, /if bytes\.len\(\) < 50_000 \{\s*return Err\(AppError::internal/);
 });
+
+// ---- 缺陷 5：书签层级被压平（合并保住层级，管理一操作就全变顶层） ----
+
+const objectsRs = () => read('src-tauri/src/engine/objects.rs');
+const morePanels = () => read('src/panels/MorePanels.tsx');
+
+test('书签管理：spec 支持 > 层级且跳跃报错，写回用 parent 栈保层级', () => {
+  const s = objectsRs();
+  // spec 解析层级：行首 > 计数 = 层级
+  assert.match(s, /let level_raw = line\.bytes\(\)\.take_while\(\|&b\| b == b'>'\)\.count\(\) as u32 \+ 1/, 'spec 未按 > 解析层级');
+  assert.match(s, /level_raw > prev_level \+ 1/, '未拒绝层级跳跃');
+  assert.match(s, /BookmarkEntry \{\s*level: level_raw/, '解析结果未带层级');
+  // 写回 parent 栈：旧实现 add_bookmark(..., None) 把层级压平，必须消失
+  assert.match(s, /let mut stack: Vec<\(u32, u32\)> = Vec::new\(\)/, '写回缺少 parent 栈');
+  assert.match(s, /let parent = stack\.last\(\)\.map\(\|\(_, id\)\| \*id\)/, '未取上级作为 parent');
+  assert.match(s, /Bookmark::new\(e\.title\.clone\(\), \[0\.0, 0\.0, 0\.0\], 0, pid\),\s*parent,/, 'add_bookmark 未传 parent');
+  assert.doesNotMatch(s, /Bookmark::new\(e\.title\.clone\(\), \[0\.0, 0\.0, 0\.0\], 0, pid\),\s*None,/, '旧压平写回仍残留');
+  // 文件头注释不能再说「只做顶层」
+  assert.doesNotMatch(s, /书签管理只做顶层/, '过时注释未更新');
+});
+
+test('书签面板：提示支持多级、列表按 level 缩进、不再谎称只有顶层', () => {
+  const s = morePanels();
+  assert.match(s, /支持多级书签（行首 > 表示子级）/, '面板未说明多级支持');
+  assert.match(s, /行首加 > 表示子级、>> 表示孙级/, 'spec 输入未说明层级格式');
+  assert.match(s, /style=\{\{ paddingLeft: \(b\.level - 1\) \* 16 \}\}/, '列表未按 level 缩进');
+  assert.match(s, /Math\.max\(\.\.\.items\.map\(\(b\) => b\.level\)\)/, '读取提示未展示最深层级');
+  assert.doesNotMatch(s, /只做顶层书签/, '过时提示未更新');
+});

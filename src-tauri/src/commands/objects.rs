@@ -98,7 +98,7 @@ pub fn manage_bookmarks(payload: BookmarkRequest, app: AppHandle) -> Result<JobR
         Ok(JobResult::ok(
             jid,
             vec![out_str],
-            format!("{}。当前顶层书签 {} 条；页面增删后书签不会自动跟随页号。", summary, count),
+            format!("{}。当前书签 {} 条；页面增删后书签不会自动跟随页号。", summary, count),
         ))
     })
 }

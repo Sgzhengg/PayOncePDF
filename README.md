@@ -61,7 +61,7 @@ PayOnce PDF/                          # <repo>
 | **F12** | 页面管理（旋转/删除/抽取/插入空白/裁剪） | lopdf 重建页树 + qpdf 切页 | 嵌套书签可能不随页号更新；裁剪只改 `/CropBox` |
 | **F13** + F16 | 水印、页眉页脚、页码、文档属性、AES-256 密码与权限、**中文水印** | lopdf 内容流 + qpdf 加密 + PDFium/系统 CJK 字体 | **水印文字支持中文**（水平居中灰字，无旋转/独立透明度）；页眉页脚仍限 WinAnsi 拉丁字符；不破解已有密码 |
 | **F14** | 导出 TXT / HTML / DOCX / XLSX | PDFium 文字层 + 自写 OOXML ZIP（**无新增依赖**） | **只导文字层，不还原版式/表格/图片**；与商业 SDK 转换差距明确写入 UI/FAQ |
-| **F15** | 创建 AcroForm 文本域 / 真脱敏 / 顶层书签管理 | lopdf `/AcroForm` + PDFium 删文字对象 + `/Outlines` 重建 | 仅文本域（无复选框/单选/下拉）；脱敏**真删文字**而非只盖黑框；书签仅顶层、不随页号自动更新 |
+| **F15** | 创建 AcroForm 文本域 / 真脱敏 / 多级书签管理 | lopdf `/AcroForm` + PDFium 删文字对象 + `/Outlines` 重建 | 仅文本域（无复选框/单选/下拉）；脱敏**真删文字**而非只盖黑框；书签用 spec 行首 `>` 表达层级（不支持拖放换父级）、不随页号自动更新 |
 | **F16** | TXT/CSV/HTML → PDF、系统打印 / 邮件、42 种 OCR 可选语言包 | PDFium + 系统 CJK 字体嵌入 + `ureq` | 纯文本 A4 排版，**不还原 Office 版式**；打印无应用内预览、mailto 附件需手动添加；语言包下载是**唯一运行时联网点** |
 
 > 功能对标 PDFgear 桌面版的范围变更与未决决策见 `docs/pdfgear-parity-matrix.md`。

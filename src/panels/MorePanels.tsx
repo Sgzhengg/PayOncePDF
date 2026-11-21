@@ -86,7 +86,11 @@ export function ObjectsPanel({ value, onChange, fileCount, filePaths = [] }: Pan
     try {
       const items = await listBookmarks({ file: path, ...(value.password ? { password: value.password } : {}) });
       setBookmarks(items);
-      setListMsg(items.length ? `读取到 ${items.length} 条顶层书签` : "该文档没有书签");
+      setListMsg(
+        items.length
+          ? `读取到 ${items.length} 条书签（最深 ${Math.max(...items.map((b) => b.level))} 级）`
+          : "该文档没有书签",
+      );
     } catch (e) {
       setListMsg(`读取失败：${String(e)}`);
     }
@@ -107,7 +111,7 @@ export function ObjectsPanel({ value, onChange, fileCount, filePaths = [] }: Pan
             ? "创建 AcroForm 文本域；不做复选框/单选/下拉/签名域。"
             : value.mode === "redact"
               ? "先真删除文字对象再盖黑框，复制粘贴也取不到原文。"
-              : "只做顶层书签；页面增删后书签不自动跟随页号。"
+              : "支持多级书签（行首 > 表示子级）；页面增删后书签不自动跟随页号。"
         }
       />
 
@@ -160,7 +164,7 @@ export function ObjectsPanel({ value, onChange, fileCount, filePaths = [] }: Pan
               value={value.spec}
               onChange={(v) => onChange({ spec: v })}
               rows={5}
-              hint="格式：页码 标题，如 `3 第三章 交付验收`。标题可含空格。中文标题用 UTF-16 写入。"
+              hint="格式：页码 标题；行首加 > 表示子级、>> 表示孙级，如 `3 第三章 交付验收` 与 `> 4 3.1 验收标准`。层级不能跳跃（子级前须有上一级）。标题可含空格，中文用 UTF-16 写入。"
             />
           ) : null}
           {value.action === "rename" || value.action === "delete" ? (
@@ -185,9 +189,12 @@ export function ObjectsPanel({ value, onChange, fileCount, filePaths = [] }: Pan
             <span className="field-hint">{listMsg}</span>
           </div>
           {bookmarks.length ? (
-            <ul className="inline-note" style={{ marginTop: 4 }}>
+            <ul className="inline-note bm-tree" style={{ marginTop: 4 }}>
               {bookmarks.map((b, i) => (
-                <li key={`${b.title}-${i}`}>
+                <li key={`${b.title}-${i}`} style={{ paddingLeft: (b.level - 1) * 16 }}>
+                  <span className="bm-level" aria-hidden="true">
+                    {b.level > 1 ? "↳ " : ""}
+                  </span>
                   第 {b.page} 页 · {b.title}
                 </li>
               ))}
