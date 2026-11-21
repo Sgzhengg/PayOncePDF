@@ -5,7 +5,7 @@ use crate::commands::{
     BatchRequest, CompressRequest, ImagesToPdfRequest, JobResult, MergeRequest, OcrRequest,
     SignRequest, SplitRequest, ToImagesRequest,
 };
-use crate::engine::{self, extras, ocr, pdf, qpdf, render, JobCtx};
+use crate::engine::{self, extras, ocr, objects, pdf, qpdf, render, JobCtx};
 use crate::error::{AppError, AppResult};
 use crate::state::{self, AppState};
 use crate::license;
@@ -170,14 +170,24 @@ pub fn merge_pdfs(payload: MergeRequest, app: AppHandle) -> Result<JobResult, Ap
         }
 
         let final_path = state::resolve_output_path(&requested);
-        state::atomic_commit(&tmp_out, &final_path)?;
 
-        let mut msg = format!("合并完成：{} 个文件，共 {} 页", inputs.len(), actual);
-        if payload.keep_bookmarks {
-            // qpdf 无法合并 outline，必须明确告知限制。
-            msg.push_str("；");
-            msg.push_str(qpdf::OUTLINE_LIMITATION);
-        }
+        // qpdf 合并产物没有 /Outlines。勾选了「保留书签」就必须真把各源文件书签
+        // 按页数偏移重建进去，失败要报错，不能给个无书签的文件还报成功。
+        let (staged, bookmark_note) = if payload.keep_bookmarks {
+            let bm_out = tmp_dir.join("merge_bookmarked.pdf");
+            let (_, summary) = objects::merge_bookmarks(&inputs, pwd, &tmp_out, &bm_out)?;
+            (bm_out, format!("；{}", summary))
+        } else {
+            (tmp_out, String::new())
+        };
+        state::atomic_commit(&staged, &final_path)?;
+
+        let msg = format!(
+            "合并完成：{} 个文件，共 {} 页{}",
+            inputs.len(),
+            actual,
+            bookmark_note
+        );
         Ok(JobResult::ok(jid, vec![p2s(&final_path)], msg))
     })
 }

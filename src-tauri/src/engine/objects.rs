@@ -8,8 +8,9 @@
 //!   不做复选框/单选/下拉/计算脚本，也不做数字签名域。
 //! - 脱敏：**先真删除文字对象**再盖黑框，不是只画一层黑矩形（那样复制仍能取到原文）。
 //!   只处理有文字层的可选中文本；扫描件需先 F5 OCR；框位置来自文字命中矩形。
-//! - 书签：只做顶层书签（不建嵌套层级）；重建 /Outlines 后旧的 outline 对象成为孤儿，
-//!   不影响渲染；页面增删后书签不自动跟随页号。
+//! - 书签：F15 书签管理只做顶层（set/add/rename/delete 全部重建为一级）；
+//!   但 F1 合并的 `merge_bookmarks` 会保留源文件原有层级。重建 /Outlines 后旧对象
+//!   成为孤儿，不影响渲染；页面增删后书签不自动跟随页号。
 
 use crate::engine::{extras, pdf, JobCtx};
 use crate::error::{AppError, AppResult};
@@ -17,7 +18,7 @@ use lopdf::{dictionary, Bookmark, Dictionary, Document, Object, ObjectId};
 use pdfium_render::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 fn lopdf_error(e: lopdf::Error) -> AppError {
     AppError::parse(format!("PDF 结构写入失败：{}", e))
@@ -442,6 +443,86 @@ pub fn manage_bookmarks(
     ))
 }
 
+/// qpdf 合并会重建文档树、丢弃各源文件的 /Outlines。本函数在其产物上重建书签：
+/// 依次读取每个源文件的顶层/嵌套书签，按该文件贡献的页数给目标页加偏移，
+/// 再写进合并结果的 /Outlines。层级也一并保留（用 parent 栈还原父子关系）。
+///
+/// - `sources` 顺序必须与 qpdf 合并时的输入顺序完全一致，否则页码会错。
+/// - `merged` 只读；`out_tmp` 必须与之不同，避免读写同一路径。
+/// - 源文件无书签不算错误；某条书签目标页越界则跳过并计数，绝不写坏文件。
+pub fn merge_bookmarks(
+    sources: &[PathBuf],
+    password: Option<&str>,
+    merged: &Path,
+    out_tmp: &Path,
+) -> AppResult<(usize, String)> {
+    if merged == out_tmp {
+        return Err(AppError::internal("书签合并：输入输出路径不能相同"));
+    }
+    let mut doc = pdf::load_doc(merged, None)?;
+    let merged_pages = doc.get_pages();
+    let total = merged_pages.len() as u32;
+
+    let mut offset: u32 = 0; // 当前源文件第一页在结果中的页号（1-based）
+    let mut added = 0usize;
+    let mut dropped = 0usize;
+    let mut stack: Vec<(usize, u32)> = Vec::new(); // (level, bookmark id)
+
+    for src in sources {
+        let src_doc = pdf::load_doc(src, password)?;
+        let n = src_doc.get_pages().len() as u32;
+        if let Ok(toc) = src_doc.get_toc() {
+            for t in toc.toc {
+                let target = offset.saturating_add(t.page as u32);
+                if target == 0 || target > total {
+                    dropped += 1;
+                    continue;
+                }
+                let Some(&pid) = merged_pages.get(&target) else {
+                    dropped += 1;
+                    continue;
+                };
+                while stack.last().is_some_and(|(l, _)| *l >= t.level) {
+                    stack.pop();
+                }
+                let parent = stack.last().map(|(_, id)| *id);
+                let id = doc.add_bookmark(Bookmark::new(t.title, [0.0, 0.0, 0.0], 0, pid), parent);
+                stack.push((t.level, id));
+                added += 1;
+            }
+        }
+        offset = offset.saturating_add(n);
+    }
+
+    if added > 0 {
+        let outline_id = doc
+            .build_outline()
+            .ok_or_else(|| AppError::internal("合并书签失败：未能构建 /Outlines"))?;
+        doc.get_object_mut(outline_id)
+            .map_err(lopdf_error)?
+            .as_dict_mut()
+            .map_err(lopdf_error)?
+            .set("Type", "Outlines");
+        doc.catalog_mut()
+            .map_err(lopdf_error)?
+            .set("Outlines", Object::Reference(outline_id));
+    }
+    write_doc(&mut doc, out_tmp)?;
+    Ok((
+        added,
+        format!(
+            "从 {} 个源文件合并 {} 条书签（保留层级{}）",
+            sources.len(),
+            added,
+            if dropped > 0 {
+                format!("，跳过 {} 条越界", dropped)
+            } else {
+                String::new()
+            }
+        ),
+    ))
+}
+
 // ---------------------------------------------------------------------------
 // 真实文件级测试（不需要 AppHandle / PDFium 的表单与书签部分）
 // ---------------------------------------------------------------------------
@@ -581,6 +662,155 @@ mod tests {
         assert!(parse_bookmark_spec("4 C", 3).is_err());
         assert!(parse_bookmark_spec("abc D", 3).is_err());
         assert!(parse_bookmark_spec("1 ", 3).is_err());
+    }
+
+    /// 用 lopdf 直接造带层级的书签文件（manage_bookmarks 只能造顶层，不够用）。
+    fn pdf_with_bookmarks(pages: usize, specs: &[(usize, &str, Option<usize>)]) -> Vec<u8> {
+        let mut doc = Document::load_mem(&tiny_pdf(pages)).unwrap();
+        let page_ids: Vec<ObjectId> = doc.get_pages().values().copied().collect();
+        let mut ids: Vec<Option<u32>> = vec![None; specs.len()];
+        for (i, (page, title, parent)) in specs.iter().enumerate() {
+            let pid = page_ids[*page - 1];
+            let parent_id = parent.and_then(|p| ids[p]);
+            let id = doc.add_bookmark(
+                Bookmark::new((*title).to_string(), [0.0, 0.0, 0.0], 0, pid),
+                parent_id,
+            );
+            ids[i] = Some(id);
+        }
+        if let Some(outline_id) = doc.build_outline() {
+            doc.get_object_mut(outline_id)
+                .unwrap()
+                .as_dict_mut()
+                .unwrap()
+                .set("Type", "Outlines");
+            doc.catalog_mut().unwrap().set("Outlines", Object::Reference(outline_id));
+        }
+        pdf::save_to_bytes(&mut doc).unwrap()
+    }
+
+    #[test]
+    fn merge_bookmarks_offsets_pages_and_keeps_cjk_titles() {
+        let dir = std::env::temp_dir().join(format!("payoncepdf_mbm_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let a = dir.join("a.pdf");
+        let b = dir.join("b.pdf");
+        let merged = dir.join("merged.pdf");
+        let out = dir.join("out.pdf");
+        std::fs::write(&a, pdf_with_bookmarks(2, &[(1, "A封面", None), (2, "A第二章", None)])).unwrap();
+        std::fs::write(&b, pdf_with_bookmarks(2, &[(1, "B第一章", None), (2, "B附录", None)])).unwrap();
+        // 模拟 qpdf 产物：4 页、无 outline
+        std::fs::write(&merged, tiny_pdf(4)).unwrap();
+
+        let (n, msg) = merge_bookmarks(&[a.clone(), b.clone()], None, &merged, &out).unwrap();
+        assert_eq!(n, 4, "{msg}");
+        let list = list_bookmarks(&out, None).unwrap();
+        assert_eq!(list.len(), 4);
+        assert_eq!((list[0].title.as_str(), list[0].page), ("A封面", 1));
+        assert_eq!((list[1].title.as_str(), list[1].page), ("A第二章", 2));
+        assert_eq!((list[2].title.as_str(), list[2].page), ("B第一章", 3));
+        assert_eq!((list[3].title.as_str(), list[3].page), ("B附录", 4));
+    }
+
+    #[test]
+    fn merge_bookmarks_preserves_nested_levels() {
+        let dir = std::env::temp_dir().join(format!("payoncepdf_mbm_lvl_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let a = dir.join("a.pdf");
+        let merged = dir.join("merged.pdf");
+        let out = dir.join("out.pdf");
+        std::fs::write(
+            &a,
+            pdf_with_bookmarks(
+                3,
+                &[(1, "总览", None), (2, "章节一", Some(0)), (3, "小节", Some(1))],
+            ),
+        )
+        .unwrap();
+        std::fs::write(&merged, tiny_pdf(3)).unwrap();
+        merge_bookmarks(&[a], None, &merged, &out).unwrap();
+        let list = list_bookmarks(&out, None).unwrap();
+        assert_eq!(list.len(), 3);
+        assert_eq!(list.iter().map(|e| e.level).collect::<Vec<_>>(), vec![1, 2, 3]);
+        assert_eq!(list[2].title, "小节");
+    }
+
+    #[test]
+    fn merge_bookmarks_skips_no_outline_and_out_of_range() {
+        let dir = std::env::temp_dir().join(format!("payoncepdf_mbm_bad_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let a = dir.join("a.pdf"); // 2 页，无书签
+        let b = dir.join("b.pdf"); // 2 页，1 条书签指向本文件第 1 页
+        let merged = dir.join("merged.pdf"); // 故意只有 2 页：b 的目标页 3 越界
+        let out = dir.join("out.pdf");
+        std::fs::write(&a, tiny_pdf(2)).unwrap();
+        std::fs::write(&b, pdf_with_bookmarks(2, &[(1, "越界条目", None)])).unwrap();
+        std::fs::write(&merged, tiny_pdf(2)).unwrap();
+        let (n, msg) = merge_bookmarks(&[a, b], None, &merged, &out).unwrap();
+        assert_eq!(n, 0, "{msg}");
+        assert!(msg.contains("跳过 1 条越界"));
+        assert!(list_bookmarks(&out, None).unwrap().is_empty());
+    }
+
+    /// 真实链路：造带书签 PDF → qpdf 合并（书签丢失）→ merge_bookmarks → 读回验证。
+    /// 用独立 qpdf 进程，不经过 AppHandle；sidecar 缺失时跳过（不视为通过）。
+    #[test]
+    fn e2e_merge_bookmarks_after_real_qpdf() {
+        let exe = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("bin/qpdf-x86_64-pc-windows-msvc.exe");
+        if !exe.exists() {
+            eprintln!("qpdf sidecar 缺失，跳过真实链路验证（不视为通过）");
+            return;
+        }
+        let dir = std::env::temp_dir().join(format!("payoncepdf_mbm_e2e_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let a = dir.join("a.pdf");
+        let b = dir.join("b.pdf");
+        let merged = dir.join("qpdf_merged.pdf");
+        let out = dir.join("bookmarked.pdf");
+        std::fs::write(&a, pdf_with_bookmarks(2, &[(1, "甲-封面", None), (2, "甲-正文", None)])).unwrap();
+        std::fs::write(&b, pdf_with_bookmarks(2, &[(1, "乙-目录", None), (2, "乙-附录", None)])).unwrap();
+
+        let status = std::process::Command::new(&exe)
+            .args(["--empty", "--pages"])
+            .arg(&a)
+            .arg(&b)
+            .arg("--")
+            .arg(&merged)
+            .status()
+            .unwrap();
+        assert!(status.success(), "qpdf 合并失败");
+        // 前置事实：qpdf 产物确实没有书签
+        assert!(list_bookmarks(&merged, None).unwrap().is_empty());
+
+        let (n, msg) = merge_bookmarks(&[a, b], None, &merged, &out).unwrap();
+        assert_eq!(n, 4, "{msg}");
+        let list = list_bookmarks(&out, None).unwrap();
+        assert_eq!(
+            list.iter().map(|e| (e.title.as_str(), e.page)).collect::<Vec<_>>(),
+            vec![("甲-封面", 1), ("甲-正文", 2), ("乙-目录", 3), ("乙-附录", 4)]
+        );
+
+        // 产物能通过 qpdf 结构校验（书签 /Outlines 写入没破坏文档树）
+        let check = std::process::Command::new(&exe)
+            .arg("--check")
+            .arg(&out)
+            .output()
+            .unwrap();
+        assert!(
+            check.status.success(),
+            "qpdf --check 失败：{}",
+            String::from_utf8_lossy(&check.stdout)
+        );
+    }
+
+    #[test]
+    fn merge_bookmarks_refuses_same_input_output_path() {
+        let dir = std::env::temp_dir().join(format!("payoncepdf_mbm_same_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let p = dir.join("p.pdf");
+        std::fs::write(&p, tiny_pdf(1)).unwrap();
+        assert!(merge_bookmarks(&[], None, &p, &p).is_err());
     }
 
     #[test]

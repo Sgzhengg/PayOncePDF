@@ -2,17 +2,13 @@
 //!
 //! 负责 F1 合并、F2 拆分的按页切片、已知密码解密、页数校验。
 //! 说明：`qpdf --empty --pages ... --` 会重建一个全新的 PDF 文档对象树，
-//! **无法把各输入文件的 /Outlines(书签) 合并进结果**（qpdf 只会丢弃源 outline）。
-//! 该限制会在合并命令返回的 message 中明确告知用户（见 jobs.rs）。
+//! **不会把各输入文件的 /Outlines(书签) 带进结果**。勾选「保留书签」时由上层
+//! `objects::merge_bookmarks()` 在 qpdf 产物上按页偏移重建书签（见 jobs.rs）。
 
 use crate::engine::sidecar;
 use crate::error::{AppError, AppResult};
 use std::path::{Path, PathBuf};
 use tauri::AppHandle;
-
-/// 已知限制说明，供上层拼进 JobResult.message。
-pub const OUTLINE_LIMITATION: &str =
-    "注意：qpdf 合并会重建文档树，无法保留/合并各源文件的书签（outline）；文字层与页面内容完整保留。";
 
 fn map_qpdf_error(stderr: &str) -> AppError {
     let s = stderr.to_ascii_lowercase();

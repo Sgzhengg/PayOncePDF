@@ -58,15 +58,25 @@ async function evaluate(expression) {
 }
 
 // 强制刷新，避免复用同一浏览器实例时上一次的文件列表 / 面板状态串扰。
+// 2026-11-21：布局偏好存在 localStorage，上一轮点过「文件」展开后，下一轮 reload
+// 仍是展开态，会让「有文件后自动收起」和后续「点开关展开看列表」两条假失败。
+// 因此先清布局偏好（主题保留），再刷新，保证每轮都从默认态开始。
+try {
+  await evaluate("localStorage.removeItem('payoncepdf-layout'); true");
+} catch {
+  // 页面正在导航时 evaluate 可能失败，reload 后再试一次即可
+}
 await send('Page.reload', { ignoreCache: true });
 await sleep(700);
-for (let i = 0; i < 30; i += 1) {
-  const ready = await evaluate(
+let ready = false;
+for (let i = 0; i < 40; i += 1) {
+  ready = await evaluate(
     "Boolean(document.querySelector('.dropzone')) && (document.querySelector('.dropzone-count')?.textContent || '').includes('0 个文件')",
   );
   if (ready) break;
   await sleep(300);
 }
+if (!ready) throw new Error('页面在 12 秒内未就绪，后续断言不可信');
 
 const results = [];
 const check = (name, ok, detail) => {
