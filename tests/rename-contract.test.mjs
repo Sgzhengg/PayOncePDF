@@ -204,6 +204,42 @@ test('F19 按矩形精确替换：命令注册、坐标闸门、前端联动与�
   assert.match(read('src/App.tsx'), /const startJob/);
 });
 
+test('P0-2 错误详情透传：任务失败展示后端中文原因，技术噪音甄别回退', () => {
+  const errors = read('src/lib/errors.ts');
+  assert.match(errors, /export function describeErrorDetail/);
+  assert.match(errors, /纯英文\/技术细节：不向用户暴露/);
+  assert.match(errors, /原文件未改动/);
+  // 甄别规则：多行 / 超长 / panic / 栈帧都回退
+  assert.match(errors, /panicked at/i);
+
+  const app = read('src/App.tsx');
+  assert.match(app, /describeErrorDetail, normalizeError/);
+  // catch 分支必须用新函数，不得回退到只看 code 的 hintForCode
+  const catchBlock = app.slice(app.indexOf('const appErr = normalizeError(e)'));
+  assert.match(catchBlock.slice(0, 300), /setStatusText\(describeErrorDetail\(appErr\)\)/);
+  assert.doesNotMatch(app, /setStatusText\(hintForCode\(appErr\.code\)\)/);
+});
+
+test('F19 宽度溢出预警：纯函数估算 + 用户确认闸门 + 预警不清空不绕过', () => {
+  const selection = read('src/lib/selection.ts');
+  assert.match(selection, /export function estimateRectEditWidth/);
+  assert.match(selection, /export interface RectEditWidthEstimate/);
+  assert.match(selection, /likelyOverflow/);
+  // 诚实边界写进代码注释：是估算不是真实 advance、不阻断执行
+  assert.match(selection, /这是估算，不是引擎的真实 advance 测量/);
+
+  const preview = read('src/components/PdfPreview.tsx');
+  assert.match(preview, /estimateRectEditWidth/);
+  assert.match(preview, /widthEstimate/);
+  // 闸门：溢出一个变量控制放行，且必须有用户确认态
+  assert.match(preview, /rectEditBaseReady/);
+  assert.match(preview, /const rectEditReady = rectEditBaseReady && \(!mayOverflow \|\| overflowAck\)/);
+  assert.match(preview, /setOverflowAck\(false\)/); // 选区/文字变化即撤销确认
+  assert.match(preview, /已知风险，仍要改这一处/);
+  assert.match(preview, /宽度预警：估算新文字/);
+  assert.match(read('src/styles.css'), /\.viewer-sel-overflow/);
+});
+
 test('F20 文档比对：命令注册、只读查询、文字层 diff、诚实边界与前端联动', () => {
   const lib = read('src-tauri/src/lib.rs');
   assert.match(lib, /commands::compare::compare_documents/);

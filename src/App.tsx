@@ -43,7 +43,7 @@ import {
   setUpdateEnabled,
   subscribeProgress,
 } from "./lib/backend";
-import { hintForCode, normalizeError } from "./lib/errors";
+import { describeErrorDetail, normalizeError } from "./lib/errors";
 import { ALL_TOOLS, createDefaultParams } from "./lib/params";
 import type { FileItem, InputItem, ParamsState } from "./lib/params";
 import { PdfPreview } from "./components/PdfPreview";
@@ -718,7 +718,9 @@ export default function App() {
       if (cancelledRef.current || jobIdRef.current !== jobId) return null;
       const appErr = normalizeError(e);
       setStatus("error");
-      setStatusText(hintForCode(appErr.code));
+      // P0-2：展示后端写的详细中文原因（如「选区字号不一致」），不再只丢一个通用码；
+      // 技术堆栈 / 英文异常串由 describeErrorDetail 甄别后回退到稳定提示。
+      setStatusText(describeErrorDetail(appErr));
       const nextStatus: FileItem["status"] = "error";
       setFiles((prev) =>
         prev.map((f) => ({ ...f, status: nextStatus, note: appErr.code })),

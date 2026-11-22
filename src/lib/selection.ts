@@ -190,6 +190,78 @@ export function unionRect(chars: LayoutChar[], indices: number[]): RectPt | null
 }
 
 /**
+ * F19 改字前的宽度溢出估算（2026-11-22，借鉴 Google AI 痛点报告「改字像修图、不重排」）。
+ *
+ * 引擎的诚实边界是「不重排、变长可能覆盖右侧」，但过去这句话只写在文档和成功提示里，
+ * 用户改完才发现文字压到一起。这里在提交前先给出估算预警。
+ *
+ * 方法：取命中字符框的外接矩形宽度作为「原文实际占位」，按字符权重算出原文的加权和，
+ * 反推「每单位加权字宽对应多少 pt」，再用替换文字的加权和估算新宽度。这样估算会自动
+ * 继承原字体的真实宽窄比例（中文全角约两倍于 ASCII），比硬编码某个字体的 advance 更准。
+ *
+ * 诚实边界：这是估算，不是引擎的真实 advance 测量；PDFium 字符框是 tight bounds、
+ * 替换后由哪个字体渲染也由 PDF 内嵌字体决定，所以只做「可能溢出」预警，绝不阻断执行，
+ * 也不改变引擎「失败即拒绝、不写文件」的安全边界。
+ */
+export interface RectEditWidthEstimate {
+  /** 原文在页面上的实际占位宽度（PDF pt，命中字符框的外接矩形）。 */
+  originalWidthPt: number;
+  /** 替换文字的估算宽度（PDF pt）。 */
+  estimatedWidthPt: number;
+  /** 估算超出量（pt）；正数表示变长、可能压到右侧。 */
+  overflowPt: number;
+  /** 相对原文的超出比例（overflowPt / originalWidthPt）。 */
+  overflowRatio: number;
+  /** 是否判断为「可能覆盖右侧」（超出量超过容忍阈值）。 */
+  likelyOverflow: boolean;
+}
+
+/** 单字符宽度权重：与 more.rs 的 wrap_line 同口径（CJK=1、ASCII≈0.55），再细分以提升估算。 */
+function charWidthWeight(ch: string): number {
+  if (!ch) return 0;
+  const cp = ch.codePointAt(0) ?? 0;
+  if (/\s/.test(ch)) return 0.3;
+  if (cp >= 0x2e80) return 1; // CJK / 全角
+  if ((ch >= "A" && ch <= "Z") || (ch >= "0" && ch <= "9")) return 0.6;
+  if (ch >= "a" && ch <= "z") return 0.52;
+  return 0.55; // 其它拉丁字符 / 符号
+}
+
+/**
+ * 估算 F19 替换后的文字宽度。选区无效、原文无占位宽度或权重和为 0 时返回 null（无法估算）。
+ * tolerancePt 为「可能溢出」的最小超出量，默认 0.5pt，避免浮点尾差触发误报。
+ */
+export function estimateRectEditWidth(
+  chars: LayoutChar[],
+  hits: number[],
+  replace: string,
+  tolerancePt = 0.5,
+): RectEditWidthEstimate | null {
+  const rect = unionRect(chars, hits);
+  if (!rect) return null;
+  const originalWidthPt = rect.right - rect.left;
+  if (!(originalWidthPt > 0)) return null;
+  let originalUnits = 0;
+  for (const i of hits) {
+    const c = chars[i];
+    if (c) originalUnits += charWidthWeight(c.ch);
+  }
+  if (!(originalUnits > 0)) return null;
+  const ptPerUnit = originalWidthPt / originalUnits;
+  let replaceUnits = 0;
+  for (const ch of [...replace]) replaceUnits += charWidthWeight(ch);
+  const estimatedWidthPt = ptPerUnit * replaceUnits;
+  const overflowPt = estimatedWidthPt - originalWidthPt;
+  return {
+    originalWidthPt,
+    estimatedWidthPt,
+    overflowPt,
+    overflowRatio: overflowPt / originalWidthPt,
+    likelyOverflow: overflowPt > tolerancePt,
+  };
+}
+
+/**
  * 画布是否可以框选。
  *
  * 结果预览默认禁止：那时右侧参数面板仍指向原文件，会出现「看着结果、改了原文件」。

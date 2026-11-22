@@ -1153,6 +1153,11 @@ body {
   border-color: color-mix(in srgb, var(--warm) 30%, var(--border)); background: var(--warm-soft);
 }
 .viewer-btn-accent:hover:not(:disabled) { color: var(--warm); border-color: var(--warm); }
+.viewer-btn-warn {
+  font-size: 11.5px; padding: 0 11px; color: var(--warm);
+  border-color: var(--warm); background: var(--warm-soft);
+}
+.viewer-btn-warn:hover:not(:disabled) { color: var(--warm); border-color: var(--warm); }
 .viewer-page { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--muted); }
 .viewer-page-input {
   width: 46px; height: 28px; text-align: center;
@@ -1309,6 +1314,12 @@ html[data-theme="dark"] .demo-badge { background: rgba(243, 246, 245, .85); colo
 .viewer-sel-count-warn { color: var(--warm); }
 .viewer-sel-note { color: var(--muted); line-height: 1.6; }
 .viewer-sel-warn { color: var(--warm); font-weight: 600; line-height: 1.6; }
+.viewer-sel-overflow {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+  padding: 7px 9px; border: 1px solid color-mix(in srgb, var(--warm) 35%, var(--border));
+  border-left: 3px solid var(--warm); border-radius: var(--radius-sm);
+  background: var(--warm-soft);
+}
 .viewer-selection-bar .viewer-btn:disabled { opacity: .45; }
 .viewer-sel-input:focus-visible,
 .viewer-selection-bar .viewer-btn:focus-visible {

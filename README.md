@@ -182,6 +182,6 @@ cargo check --manifest-path src-tauri/Cargo.toml
 ## 8. 相关交付物
 
 - 官网：`site/index.html`、`index.zh.html`、`pricing.html`、`faq.html`、`privacy.html`、`verify.html`
-- 文档：`docs/user-manual.md`、`error-codes.md`、`test-report.md`（§13 第二轮验证）、`support-template.md`、`pain-and-competitive-analysis.md`（PainRadar 真实语料分析，§10/§11 补记两轮范围变更）、`pdfgear-parity-matrix.md`（对标矩阵与未决决策）
+- 文档：`docs/user-manual.md`、`error-codes.md`、`test-report.md`（§13 第二轮验证）、`support-template.md`、`pain-and-competitive-analysis.md`（PainRadar 真实语料分析，§10/§11 补记两轮范围变更）、`pdfgear-parity-matrix.md`（对标矩阵与未决决策）、`google-ai-pain-points-adoption.md`（2026-11-22 借鉴 Google AI 痛点报告的产品改进清单，按投入产出排序）
 - 测试：`tests/acceptance.py`、`tests/ui-interaction-smoke.mjs`、`tests/verify-updater-signature.py`（用 `tauri.conf.json` 公钥复现 minisign 验签）、`tests/license_test.md`、`tests/fixtures/`、`tests/out/acceptance-report.md`
 - 契约：`CONTRACT.md`；需求：`docs/requirements/PRD.md`（及 `copy.md` / `preorder.md` / `landing*.html`，原始位置 `E:\PainRadar\docs\pdf-launch\`）

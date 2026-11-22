@@ -12,6 +12,7 @@ import {
   canSelectOnCanvas,
   charPercentRect,
   countOccurrences,
+  estimateRectEditWidth,
   expandToLines,
   groupLineIndices,
   hitCharIndices,
@@ -158,6 +159,64 @@ test('unionRect：F19 用选中字符的外接矩形，扩行后与界面选中�
   assert.equal(unionRect(chars, [999]), null);
   // 零面积区域（同一字符重复计入不会产生退化矩形）
   assert.equal(unionRect([{ index: 0, ch: ' ', left: 10, bottom: 700, right: 10, top: 718 }], [0]), null);
+});
+
+// ── F19 改字宽度溢出估算（2026-11-22：借鉴 Google AI 痛点报告「改字像修图、不重排」）──
+test('estimateRectEditWidth：等宽替换不预警，按原文真实宽度反推字宽', () => {
+  // line() 里每个 ASCII 字符框宽 9pt、间距 10pt：两字外接矩形 = 10→29 = 19pt。
+  // 换成同为两字的 45，加权和不变，估算宽度仍约 19pt、不预警。
+  const chars = line('30', 700, 10, 0);
+  const est = estimateRectEditWidth(chars, [0, 1], '45');
+  assert.ok(est);
+  assert.equal(est.originalWidthPt, 19);
+  assert.ok(Math.abs(est.estimatedWidthPt - 19) < 1e-9);
+  assert.ok(Math.abs(est.overflowPt) < 1e-9);
+  assert.equal(est.likelyOverflow, false);
+});
+
+test('estimateRectEditWidth：变长预警，变短不预警', () => {
+  const chars = line('30', 700, 10, 0);
+  const longer = estimateRectEditWidth(chars, [0, 1], '6000');
+  assert.ok(longer);
+  assert.ok(longer.overflowPt > 0);
+  // 从 2 字变 4 字，估算宽度翻倍，超出量约等于原宽（ratio≈1）。
+  assert.ok(longer.overflowRatio > 0.9);
+  assert.equal(longer.likelyOverflow, true);
+  const shorter = estimateRectEditWidth(chars, [0, 1], '6');
+  assert.ok(shorter);
+  assert.ok(shorter.overflowPt < 0);
+  assert.equal(shorter.likelyOverflow, false);
+});
+
+test('estimateRectEditWidth：中文全角约两倍宽，继承原文宽窄比例', () => {
+  // 造一行：2 个 ASCII(各 9pt) + 1 个 CJK(18pt)，总宽 9+1+18=28pt。
+  const chars = [
+    { index: 0, ch: '3', left: 10, bottom: 700, right: 19, top: 718 },
+    { index: 1, ch: '0', left: 20, bottom: 700, right: 29, top: 718 },
+    { index: 2, ch: '日', left: 30, bottom: 700, right: 48, top: 718 },
+  ];
+  // 同样 3 个字符换成 3 个中文：加权从 0.6+0.6+1=2.2 涨到 3.0，明显变长。
+  const est = estimateRectEditWidth(chars, [0, 1, 2], '四五六');
+  assert.ok(est);
+  assert.ok(est.overflowPt > 0);
+  assert.equal(est.likelyOverflow, true);
+  // 换成等宽的 2 个 ASCII + 1 个 CJK：不预警。
+  const same = estimateRectEditWidth(chars, [0, 1, 2], '45日');
+  assert.ok(same);
+  assert.ok(Math.abs(same.overflowPt) < 1e-9);
+  assert.equal(same.likelyOverflow, false);
+});
+
+test('estimateRectEditWidth：无选区 / 零宽 / 纯空格原文返回 null，不伪造估算', () => {
+  const chars = line('AB', 700, 10, 0);
+  assert.equal(estimateRectEditWidth(chars, [], 'X'), null);
+  assert.equal(estimateRectEditWidth(chars, [99], 'X'), null);
+  const zero = [{ index: 0, ch: ' ', left: 10, bottom: 700, right: 10, top: 718 }];
+  assert.equal(estimateRectEditWidth(zero, [0], 'X'), null);
+  // 容忍阈值：极小的超出量不触发误报。
+  const tiny = estimateRectEditWidth(chars, [0, 1], 'ABC', 1000);
+  assert.ok(tiny);
+  assert.equal(tiny.likelyOverflow, false);
 });
 
 // ── 结果预览的框选许可（真机回归：2026-11-21 用户报「改完一处后鼠标不能再选框」）──

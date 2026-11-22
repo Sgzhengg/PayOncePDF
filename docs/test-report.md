@@ -1451,3 +1451,56 @@ F18 此前把内容流坐标字符框直接回传，前端按「屏幕→显示 
 | `scripts/preflight-real-device.py` | **PASS 26 / WARN 4 / BLOCK 0 / FAIL 0**；`INSTALLER_SHA256` 已同步 |
 
 **哈希链路**：… → `176bf902…2b6bf` → `e2849b8e…6e58c` → `452ac5d5…bcd1` → **`1b238165…fc665`（本轮）**。此前所有哈希均已失效。
+
+## 35. F19 改字宽度溢出预警（2026-11-22，借鉴 Google AI 痛点报告）
+
+> 触发：用户提供 Google AI 研究报告《用户在使用 PDF 软件工具时感到最不爽的痛点》，「文本修改极其痛苦—不重排导致留白/重叠」一条直指 F19 的诚实边界。
+
+### 35.1 改动范围（只做预警，不碰引擎）
+
+纯前端：新增一个可单测的纯函数 + 画布内预警 UI。**不改后端、不新增命令、不占导出授权、不改任何写入闸门**；引擎「失败即拒绝、不写文件」完全不变。因此本轮**不产出新安装包**，§34.5 的包仍是当前唯一有效包。
+
+### 35.2 实现
+
+| 层 | 改动 |
+|---|---|
+| 纯函数 | `src/lib/selection.ts` 新增 `estimateRectEditWidth(chars, hits, replace, tolerancePt=0.5)`：命中字符框外接矩形真实宽度 → 字符权重反推 pt/单位 → 估算替换宽度与超出量；返回 `originalWidthPt / estimatedWidthPt / overflowPt / overflowRatio / likelyOverflow`；无选区/零宽/纯空格返回 `null` |
+| UI | `PdfPreview.tsx`：`widthEstimate` + `mayOverflow`；溢出时显示宽度预警条（估算宽、原宽、超出 pt 与百分比），「直接改这一处」先禁用，须点「已知风险，仍要改这一处」（`overflowAck`）放行；选区/选中文字/替换文字任一变化即 `setOverflowAck(false)` |
+| 样式 | `styles.css` 新增 `.viewer-sel-overflow`（暖色左边框警示块）与 `.viewer-btn-warn` |
+| 契约锁 | `rename-contract.test.mjs` 新增一条静态断言，锁定纯函数、`overflowAck` 闸门表达式、确认按钮与样式，防误删 |
+
+### 35.3 验证
+
+- `npm test` **40 PASS / 0 FAIL**（原 35 + 5）：等宽 `30→45` 不预警、变长 `30→6000` 预警、变短不预警、CJK 全角继承原文比例（等宽 `45日` 不预警 / 三中文预警）、无效选区返回 null 与容忍阈值抑制误报。
+- `npm run typecheck`（`tsc --noEmit`）通过，无类型错误。
+- 本功能在浏览器预览模式禁用（与 F18/F19 一致，无本地引擎），UI 冒烟无法用 mock 复核该预警；**真机窗口未验**，沿用 §34 的真机边界。
+
+### 35.4 边界（诚实）
+
+- 是**估算**不是引擎真实 advance 测量：PDFium 字符框为 tight bounds，替换后由哪个字体渲染取决于 PDF 内嵌字体，故只在某些情形提示「可能覆盖」，可能漏报也可能偏保守。
+- 预警**不改变 F19 不重排的根本限制**，也不能替代目视核对；确认放行后仍按原逻辑执行，若被引擎闸门拒绝，原文件字节不变。
+
+## 36. 错误详情透传 P0-2（2026-11-22，同一份痛点报告）
+
+### 36.1 改动范围
+
+纯前端：新增一个可单测的纯函数 + 改 `startJob` catch 一行。**不改后端、不改错误码、不动任何写入闸门**；`describeError`（许可激活）行为保持不变。本轮不产新安装包，§34.5 的包仍唯一有效。
+
+### 36.2 实现
+
+| 层 | 改动 |
+|---|---|
+| 纯函数 | `src/lib/errors.ts` 新增 `describeErrorDetail(err)`：中文业务原因完整展示（缺「未改动」语义时补「（原文件未改动）」）；空/多行/超长(>240)/Rust panic/JS 栈帧/纯英文技术串一律回退到 `hintForCode(code)`，不泄漏堆栈 |
+| UI | `src/App.tsx` catch 由 `setStatusText(hintForCode(appErr.code))` 改为 `setStatusText(describeErrorDetail(appErr))` |
+| 测试 | 新建 `tests/error-detail.test.mjs`（7 条纯函数）；`package.json` test 脚本纳入；`rename-contract.test.mjs` +1 条静态契约锁（禁止回退到 hintForCode） |
+
+### 36.3 验证
+
+- `npm test` **48 PASS / 0 FAIL**（原 40 + 7 条纯函数 + 1 条契约锁）：中文原因展示、补安全保证、自带口径不重复、英文技术串回退、堆栈/panic/栈帧/超长回退、空值回退、describeError 不变。
+- `npm run typecheck` / `npm run build` 通过（64 modules）。
+- 浏览器 mock 不产生真实引擎失败，真机未验。
+
+### 36.4 边界（诚实）
+
+- 只甄别展示，**不改变错误码语义**，也不改变「失败即拒绝、不写文件」的安全边界。
+- 纯英文业务原因（本项目暂无）会被当作技术噪音回退到通用文案——这是防泄漏的刻意取舍。

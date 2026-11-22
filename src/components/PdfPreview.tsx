@@ -19,6 +19,7 @@ import {
   canSelectOnCanvas,
   charPercentRect,
   countOccurrences,
+  estimateRectEditWidth,
   expandToLines,
   hitCharIndices,
   screenRectToPdfRect,
@@ -136,6 +137,8 @@ export function PdfPreview({
   const [selRect, setSelRect] = useState<RectPt | null>(null);
   const [textOverride, setTextOverride] = useState<string | null>(null);
   const [replaceValue, setReplaceValue] = useState("");
+  // F19 宽度溢出预警：用户确认过「仍要改」后才放行，选区或替换文字一变就重置。
+  const [overflowAck, setOverflowAck] = useState(false);
   const [annotKind, setAnnotKind] = useState<AnnotKind>("highlight");
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
@@ -266,6 +269,7 @@ export function PdfPreview({
     setHits([]);
     setSelRect(null);
     setTextOverride(null);
+    setOverflowAck(false);
     setDrag({ startX: p.x, startY: p.y, endX: p.x, endY: p.y });
   };
 
@@ -284,6 +288,7 @@ export function PdfPreview({
     if (Math.abs(p.x - drag.startX) < 3 && Math.abs(p.y - drag.startY) < 3) {
       setHits([]);
       setSelRect(null);
+      setOverflowAck(false);
       setDrag(null);
       return;
     }
@@ -293,6 +298,7 @@ export function PdfPreview({
     );
     setHits(hitCharIndices(layout.chars, rect));
     setSelRect(rect);
+    setOverflowAck(false);
     setDrag(null);
   };
 
@@ -309,12 +315,22 @@ export function PdfPreview({
     // 矩形同步扩到整行：F19 按这块矩形替换，显示与执行范围必须一致
     setSelRect(unionRect(layout.chars, expanded));
     setTextOverride(null);
+    setOverflowAck(false);
   };
 
   // F19：按坐标定位替换。只有「有矩形 + 填了替换文字 + 没手动改写选中文字」才允许，
   // 因为后端会按矩形自己读出原文，手改的文字与矩形内容不一致时无法安全执行。
-  const rectEditReady =
+  const rectEditBaseReady =
     Boolean(selRect) && replaceValue.length > 0 && textOverride === null && Boolean(onRectEdit);
+  // 宽度溢出预警：用选中字符框的真实宽度反推字宽，估算替换后是否可能压到右侧。
+  // 手改了「选中文字」时 selText 与选区已脱钩，估算无意义，不显示预警。
+  const widthEstimate =
+    textOverride === null && replaceValue.length > 0
+      ? estimateRectEditWidth(chars, hits, replaceValue)
+      : null;
+  const mayOverflow = Boolean(widthEstimate?.likelyOverflow);
+  // 有溢出风险时，必须由用户明确确认过「仍要改」才放行；这是预警不是阻断。
+  const rectEditReady = rectEditBaseReady && (!mayOverflow || overflowAck);
 
   const applyRectEdit = () => {
     if (!selRect || !layout || !onRectEdit || !rectEditReady) return;
@@ -518,7 +534,10 @@ export function PdfPreview({
                 aria-label="替换后的文字"
                 placeholder="替换后的文字"
                 value={replaceValue}
-                onChange={(e) => setReplaceValue(e.target.value)}
+                onChange={(e) => {
+                  setReplaceValue(e.target.value);
+                  setOverflowAck(false);
+                }}
               />
               <button
                 type="button"
@@ -560,6 +579,26 @@ export function PdfPreview({
                 </>
               ) : null}
             </div>
+            {mayOverflow && widthEstimate ? (
+              <div className="viewer-sel-overflow" role="status">
+                <span className="viewer-sel-warn">
+                  宽度预警：估算新文字约 {widthEstimate.estimatedWidthPt.toFixed(1)} pt，
+                  比选中的原文（{widthEstimate.originalWidthPt.toFixed(1)} pt）宽约 {widthEstimate.overflowPt.toFixed(1)} pt
+                  （{Math.round(widthEstimate.overflowRatio * 100)}%）。引擎不会自动重排，多出的部分可能盖住右侧内容。
+                </span>
+                {overflowAck ? (
+                  <span className="viewer-sel-note">
+                    你已确认按原样替换。可缩短文字、或直接点「直接改这一处」执行。
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    className="viewer-btn viewer-btn-warn"
+                    onClick={() => setOverflowAck(true)}
+                  >已知风险，仍要改这一处</button>
+                )}
+              </div>
+            ) : null}
             {resultMode ? (
               <span className="viewer-sel-note">
                 正在继续修改本次结果文件：填好「改成」后点「直接改这一处」，改动会累积在同一份 <code>_edited</code> 文件里，原始文件始终不变。

@@ -61,3 +61,38 @@ export function normalizeError(err: unknown): AppError {
 export function describeError(err: unknown): string {
   return hintForCode(normalizeError(err).code);
 }
+
+/**
+ * 任务失败后状态栏展示的错误详情（P0-2，2026-11-22）。
+ *
+ * 后端 AppError 序列化为 { code, message }，message 里写了很有价值的中文业务原因
+ * （如「选区里有大小不同的字」「文字层顺序与内容流不一致」），旧代码却只用 code
+ * 取通用提示，把这些原因全丢了，用户只能反复试错。
+ *
+ * 策略（避免把内部实现/堆栈泄漏给用户）：
+ * - 空 message / 多行堆栈 / Rust panic / JS 栈帧 / 超长 dump → 回退到稳定 code 文案；
+ * - 纯英文技术串（如 "IO error: ..."）→ 同样回退，不暴露内部错误串；
+ * - 含中文的业务原因 → 直接展示；若没自带「未改动」语义，补一句让用户安心。
+ *
+ * 不改变任何错误码语义，也不影响 describeError（许可激活场景）的既有行为。
+ */
+export function describeErrorDetail(err: unknown): string {
+  const appErr = normalizeError(err);
+  const hint = hintForCode(appErr.code);
+  const detail = appErr.message.trim();
+  if (!detail) return hint;
+  if (
+    /[\r\n]/.test(detail) ||
+    detail.length > 240 ||
+    /\bat\s+\S+\s*\([^)]*:\d+:\d+\)/.test(detail) ||
+    /panicked at/i.test(detail)
+  ) {
+    return hint;
+  }
+  // 纯英文/技术细节：不向用户暴露（IO error、serde 错误串等）。
+  if (!/[\u3400-\u9fff]/.test(detail)) return hint;
+  // 中文业务原因：多数自带「已拒绝且未写出文件」口径，无需重复；否则补安全保证。
+  return /未改动|未写出|未改变|未修改|已拒绝/.test(detail)
+    ? detail
+    : `${detail}（原文件未改动）`;
+}
