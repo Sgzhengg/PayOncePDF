@@ -1483,3 +1483,63 @@ html[data-theme="dark"] .viewer-hit {
 /* 拖拽中：列宽实时跟手，无过渡；全局变列光标并禁选中文本 */
 .app-body[data-resizing="1"] { transition: none; user-select: none; cursor: col-resize; }
 .app-body[data-resizing="1"] .col-resizer::after { background: var(--accent); opacity: .55; }
+
+/* ---------- F21 应用内功能自检 ---------- */
+.selfcheck-summary {
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  padding: 8px 10px; border: 1px solid var(--border); border-radius: 7px;
+  background: var(--surface-2, var(--surface));
+}
+.selfcheck-summary.selfcheck-fail { border-color: var(--danger); }
+.selfcheck-summary.selfcheck-warn { border-color: var(--warning-ink); }
+.selfcheck-chip {
+  font-size: 11.5px; color: var(--muted); padding: 2px 7px; border-radius: 999px;
+  background: var(--surface-3, var(--surface));
+}
+.selfcheck-chip.is-bad { color: var(--danger); font-weight: 600; }
+.selfcheck-chip.is-skip { color: var(--warning-ink); }
+.selfcheck-verdict { font-size: 11.5px; color: var(--text); margin-left: auto; }
+.selfcheck-list {
+  max-height: 260px; overflow: auto;
+  border: 1px solid var(--border); border-radius: 7px; background: var(--surface);
+}
+.selfcheck-group + .selfcheck-group { border-top: 1px solid var(--border); }
+.selfcheck-group-title {
+  position: sticky; top: 0; z-index: 1;
+  padding: 5px 10px; font-size: 11.5px; font-weight: 600; color: var(--muted);
+  background: var(--surface-2, var(--surface)); border-bottom: 1px solid var(--border);
+}
+.selfcheck-group ul { list-style: none; margin: 0; padding: 0; }
+.selfcheck-group li {
+  display: grid; grid-template-columns: 16px minmax(140px, 1fr) auto auto;
+  gap: 4px 8px; padding: 6px 10px; font-size: 11.5px;
+  border-bottom: 1px solid var(--border);
+}
+.selfcheck-group li:last-child { border-bottom: none; }
+.selfcheck-group li.is-fail { background: color-mix(in srgb, var(--danger) 8%, transparent); }
+.selfcheck-mark { font-weight: 700; }
+.selfcheck-group li.is-pass .selfcheck-mark { color: var(--teal); }
+.selfcheck-group li.is-fail .selfcheck-mark { color: var(--danger); }
+.selfcheck-group li.is-skip .selfcheck-mark { color: var(--warning-ink); }
+.selfcheck-group li code { font-size: 11px; color: var(--text); overflow-wrap: anywhere; }
+.selfcheck-feature, .selfcheck-ms { color: var(--muted); }
+.selfcheck-ms { font-variant-numeric: tabular-nums; }
+.selfcheck-detail {
+  grid-column: 2 / -1; font-size: 11px; color: var(--muted); overflow-wrap: anywhere;
+}
+.selfcheck-coverage {
+  font-size: 11.5px; padding: 8px 10px; border-radius: 7px;
+  background: var(--teal-soft); color: var(--text);
+}
+.selfcheck-coverage p { margin: 4px 0 0; color: var(--muted); }
+.selfcheck-manual {
+  font-size: 11.5px; border: 1px solid var(--border);
+  border-radius: 7px; padding: 8px 10px;
+}
+.selfcheck-manual summary { cursor: pointer; font-weight: 600; color: var(--warning-ink); }
+.selfcheck-manual ul { margin: 8px 0 0; padding-left: 18px; color: var(--muted); }
+.selfcheck-raw {
+  width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px;
+  color: var(--text); background: var(--surface-2, var(--surface)); overflow: auto;
+}

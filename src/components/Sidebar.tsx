@@ -1,7 +1,7 @@
 import { ALL_TOOLS } from "../lib/params";
 import type { ToolId } from "../lib/types";
 
-export type DialogView = "about" | "license" | "network";
+export type DialogView = "about" | "license" | "network" | "paywall" | "selfcheck";
 
 interface SidebarProps {
   active: ToolId;
@@ -13,6 +13,7 @@ interface SidebarProps {
 
 const FOOTER_ITEMS: { view: DialogView; label: string }[] = [
   { view: "about", label: "关于" },
+  { view: "selfcheck", label: "运行自检" },
   { view: "license", label: "授权" },
   { view: "network", label: "网络活动" },
 ];

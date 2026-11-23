@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Help &amp; FAQ · Local Offline PDF Editor — PayOnce PDF</title>
+<meta name="description" content="PayOnce PDF help center: privacy and network requests, editing and conversion boundaries, OCR, signature support, system requirements, licensing and refunds, installer safety. Explicit limitations, no silent corruption.">
+<meta name="theme-color" content="#0b0f16">
+<link rel="stylesheet" href="/styles.css">
+<link rel="canonical" href="https://payoncepdf.com/en/help">
+<link rel="alternate" hreflang="zh-CN" href="https://payoncepdf.com/help">
+<link rel="alternate" hreflang="en" href="https://payoncepdf.com/en/help">
+<link rel="alternate" hreflang="x-default" href="https://payoncepdf.com/en/help">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[
+{"@type":"Question","name":"Are my files really never uploaded? Why should I believe it?","acceptedAnswer":{"@type":"Answer","text":"All processing is on-device. Only three enumerable network requests exist at runtime: one-time activation, the update check you choose to start, and OCR language packs you choose to install. File contents and filenames never go online."}},
+{"@type":"Question","name":"Can it reflow like Word, or convert to Word/Excel with high fidelity?","acceptedAnswer":{"@type":"Answer","text":"No. F19 is in-place replacement with no reflow. High-fidelity Word/Excel conversion and WYSIWYG editing are out of scope. F14 exports the text layer without preserving layout, tables or images."}},
+{"@type":"Question","name":"Do I need a subscription or a card? What about refunds?","acceptedAnswer":{"@type":"Answer","text":"No. The 7-day full trial needs no account and no credit card. $39 / ¥199 once, 12 months of 1.x updates, 7-day no-questions refund."}},
+{"@type":"Question","name":"What happens when the trial ends?","acceptedAnswer":{"@type":"Answer","text":"No file is deleted or modified; only export is paused. Users who have not bought see an in-app payment window and can buy once, then enter the activation key. Buyers who already activated switch to the lifetime buyout automatically at expiry, with no window."}}
+]}
+</script>
+</head>
+<body>
+
+<div class="topbar"><b>Windows / macOS</b> · 7-day full-feature free trial, no card required · your files never uploaded</div>
+
+<header>
+  <div class="wrap nav">
+    <a class="brand" href="/en/index.html">PayOnce <b>PDF</b></a>
+    <nav class="links">
+      <a href="/en/index.html">Home</a>
+      <a href="/en/download.html">Download</a>
+      <a href="/en/pricing.html">Pricing</a>
+      <a class="active" href="/en/help.html">Help</a>
+    </nav>
+    <a class="lang" href="/help.html" aria-label="切换到中文">中文</a>
+    <details class="mnav">
+      <summary>Menu</summary>
+      <div class="mnav-box">
+        <a href="/en/index.html">Home</a><a href="/en/download.html">Download</a><a href="/en/pricing.html">Pricing</a><a class="active" href="/en/help.html">Help</a>
+        <a href="/help.html">中文</a>
+      </div>
+    </details>
+  </div>
+</header>
+
+<main>
+<div class="wrap">
+  <div class="page-head">
+    <span class="eyebrow">FAQ · honest boundaries</span>
+    <h1>Help center</h1>
+    <p>We'd rather spell out what's not supported than let you find out after paying.</p>
+  </div>
+</div>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h2>Privacy and network</h2></div>
+    <div class="faq">
+      <div class="qa"><h3>Are my files really never uploaded? Why should I believe it?</h3><p>All processing is on-device. Only three enumerable network requests exist at runtime: one-time activation, the update check you choose to start, and OCR language packs you choose to install. File contents and filenames never go online. The site provides packet-capture self-check steps for Windows and macOS so you can verify it — we avoid the inaccurate "zero network requests" claim.</p></div>
+      <div class="qa"><h3>Does it work offline?</h3><p>Yes. Apart from first-time activation, a manually started update check, and installing OCR language packs, core editing is fully offline. Merging, compressing, annotating, in-place editing and document comparison all work with no network.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h2>Editing, conversion and OCR</h2></div>
+    <div class="faq">
+      <div class="qa"><h3>Can it reflow like Word, or convert to Word/Excel with high fidelity?</h3><p>No — and we say so. F19 is in-place replacement with no reflow; longer text may cover what's to the right, and you're warned before committing. High-fidelity Word/Excel conversion and WYSIWYG editing are out of scope. F14 exports the text layer (TXT/HTML/DOCX/XLSX) without preserving layout, tables or images.</p></div>
+      <div class="qa"><h3>Does it support signatures? Checkboxes or stamps?</h3><p>You can create AcroForm text-field signatures, watermarks and password encryption. Checkboxes, radio buttons, dropdowns, calculation scripts and handwritten stamps are not supported; the tool refuses clearly rather than silently corrupting the file.</p></div>
+      <div class="qa"><h3>Can I edit or compare scanned documents?</h3><p>Scans have no text layer — run local OCR first (optional language packs, including Simplified Chinese and English). Only then can you box-select edit or compare text layers. With no text layer the tool says so explicitly and never reports "no differences" silently.</p></div>
+      <div class="qa"><h3>What does document comparison check?</h3><p>Text layers only, with per-page additions, deletions and changes, exportable to a TXT report. It doesn't recognize image or layout changes; when page counts differ, extra pages are listed as whole-page adds/deletes. Results for contracts, financial and legal documents need human review.</p></div>
+      <div class="qa"><h3>Does compression lose the text layer?</h3><p>The acceptance target is 20MB down to ≤5MB with the text layer kept searchable and copyable. This isn't an absolute "lossless" promise — if a particular source can't retain the text layer, the tool says so rather than silently producing an unsearchable file.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h2>Systems, licensing and purchase</h2></div>
+    <div class="faq">
+      <div class="qa"><h3>Which systems? How many machines per license?</h3><p>Windows 10/11 and macOS 11+ (Apple Silicon and Intel). One license covers up to 3 devices, no account, offline key validation. Mobile/iOS is not supported.</p></div>
+      <div class="qa"><h3>Do I need a subscription or a card? What about refunds?</h3><p>No. The 7-day full trial needs no account and no credit card. $39 / ¥199 once, 12 months of 1.x updates, 7-day no-questions refund. A buyout is not a subscription — there is no auto-renew. The domestic payment channel is not open yet; CNY prices are indicative.</p></div>
+      <div class="qa"><h3>What happens when the trial ends? Are files deleted?</h3><p>No file is deleted or modified — only export is paused. Users who haven't bought see an in-app payment window: click to pay on Gumroad, then enter the activation key. Buyers who already activated switch to the lifetime buyout automatically and see no window. There is no automatic charge at expiry.</p></div>
+      <div class="qa"><h3>What's the difference between "Buy" and "Download"?</h3><p>Both install the same app and both start with a 7-day trial. Buyers pay first and get an activation key, so the trial switches to lifetime automatically at expiry; download users get the in-app payment window at expiry.</p></div>
+      <div class="qa"><h3>Where do I buy?</h3><p>We plan to sell on Gumroad. The product is not created yet, so the buy button is an explicit placeholder that won't lead to an invalid checkout. Once live it will be replaced with the real product URL. Until then you can subscribe for a launch reminder or request a free trial.</p></div>
+      <div class="qa"><h3>Is the installer safe?</h3><p>We keep a whitelist of open-source components (PDFium, qpdf, Tesseract, lopdf) and avoid AGPL-licensed code. Updates are signature-verified, with the previous version kept if verification fails. The installer is still in signing/release preparation — we won't fake a clickable download link before it ships.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h2>Still stuck?</h2><p>Write to us — a human replies, not a ticket bot.</p></div>
+    <div class="cta" style="border:0;background:transparent;padding:0">
+      <div class="btns">
+        <a class="btn primary" href="mailto:hello@payoncepdf.com">hello@payoncepdf.com</a>
+        <a class="btn ghost" href="/en/download.html">Try free for 7 days</a>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-row">
+      <a class="brand" href="/en/index.html">PayOnce <b style="color:var(--pri)">PDF</b></a>
+      <a href="/en/download.html">Download</a>
+      <a href="/en/pricing.html">Pricing</a>
+      <a href="/en/help.html">Help</a>
+      <a href="mailto:hello@payoncepdf.com">hello@payoncepdf.com</a>
+    </div>
+    <div class="legal">
+      <p><b>Privacy:</b> no email collection, no telemetry; file contents and filenames are never uploaded. Only three enumerable network requests at runtime: one-time activation, the update check you start, and OCR language packs you install.</p>
+      <p><b>Terms &amp; license:</b> one license covers up to 3 devices, 12 months of 1.x updates; 7-day full trial with no card, 7-day no-questions refund; 50% upgrade price for 2.x. The software is provided "as is"; explicit limitations are listed on this page.</p>
+      <p>© 2026 PayOnce PDF. Download and purchase links are placeholders until the installer is signed and released.</p>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,11 @@
+# Cloudflare Pages 响应头（对齐 zhuazhua.video 的安全头做法）
+# 语法见 https://developers.cloudflare.com/pages/configuration/headers/
+
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: SAMEORIGIN
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(), microphone=(), camera=()
+  Cache-Control: public, max-age=0, must-revalidate
+
+# 官网是纯静态单页，HTML 走边缘缓存但即时校验；后续若加静态资源可在此追加长缓存规则。

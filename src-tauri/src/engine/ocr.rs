@@ -10,6 +10,21 @@ use crate::error::{AppError, AppResult};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+/// Windows 上 `app.path().resource_dir()` 可能返回 `\\?\` 扩展长度路径；
+/// tesseract 内部用 `/` 拼接 `<tessdata>/<lang>.traineddata`，而在 `\\?\` 路径下
+/// Windows 不接受正斜杠，会误报 E1006「语言包缺失」。传给外部工具前去掉前缀，
+/// 路径本身仍然指向同一目录（普通 Win32 绝对路径）。F21 自检首次运行发现此问题。
+#[cfg(target_os = "windows")]
+fn tessdata_arg_for_external(p: &Path) -> PathBuf {
+    let raw = p.to_string_lossy();
+    PathBuf::from(raw.strip_prefix(r"\\?\").unwrap_or(raw.as_ref()))
+}
+
+#[cfg(not(target_os = "windows"))]
+fn tessdata_arg_for_external(p: &Path) -> PathBuf {
+    p.to_path_buf()
+}
+
 fn run_tesseract(
     app: &tauri::AppHandle,
     bin: &Path,
@@ -20,11 +35,12 @@ fn run_tesseract(
     want_pdf: bool,
 ) -> AppResult<PathBuf> {
     let langs = languages.join("+");
+    let tessdata_arg = tessdata_arg_for_external(tessdata);
     let mut cmd = Command::new(bin);
     cmd.arg(img)
         .arg(outbase)
         .arg("--tessdata-dir")
-        .arg(tessdata)
+        .arg(&tessdata_arg)
         .arg("-l")
         .arg(&langs);
     if want_pdf {
@@ -135,5 +151,24 @@ pub fn run(
         }
         std::fs::write(&merged, buf).map_err(AppError::from)?;
         Ok(merged)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn tessdata_arg_drops_verbatim_prefix() {
+        let p = PathBuf::from(r"\\?\E:\app\resources\tessdata");
+        let got = tessdata_arg_for_external(&p);
+        assert_eq!(got, PathBuf::from(r"E:\app\resources\tessdata"));
+    }
+
+    #[test]
+    fn tessdata_arg_keeps_normal_path() {
+        let p = PathBuf::from("resources/tessdata");
+        assert_eq!(tessdata_arg_for_external(&p), p);
     }
 }

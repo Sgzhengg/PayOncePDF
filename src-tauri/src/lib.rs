@@ -25,10 +25,26 @@ pub fn run() {
             // 首次启动建立 trial.json（7 天试用 + sha256 摘要）。
             let handle = app.handle().clone();
             let _ = license::get_license_state(&handle);
+            // F21 无人值守自检：仅显式设置 PAYONCEPDF_SELFCHECK=1 时触发，
+            // 普通启动完全不受影响。真机回归 / CI 可据此脚本化跑完自检，
+            // 不必人工点击「运行自检」；报告另写 PAYONCEPDF_SELFCHECK_OUT 并以 .done 标记完成。
+            if std::env::var("PAYONCEPDF_SELFCHECK").as_deref() == Ok("1") {
+                let selfcheck_handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    let report =
+                        commands::selfcheck::run_self_check_blocking(&selfcheck_handle);
+                    if let Ok(out) = std::env::var("PAYONCEPDF_SELFCHECK_OUT") {
+                        let json = serde_json::to_string_pretty(&report).unwrap_or_default();
+                        let _ = std::fs::write(&out, json);
+                        let _ = std::fs::write(format!("{}.done", out), b"done");
+                    }
+                });
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             commands::app::get_app_info,
+            commands::selfcheck::run_self_check,
             commands::app::get_license_state,
             commands::app::activate_license,
             commands::app::cancel_job,

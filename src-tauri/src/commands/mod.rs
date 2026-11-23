@@ -9,6 +9,7 @@ pub mod extras;
 pub mod jobs;
 pub mod more;
 pub mod objects;
+pub mod selfcheck;
 pub mod viewer;
 
 // F17 内置阅读视图 / F18 画布框选的 DTO 定义在 viewer.rs（响应体再导出自 engine::render），

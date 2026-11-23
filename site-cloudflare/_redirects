@@ -1,0 +1,25 @@
+# Cloudflare Pages 重定向规则
+# www → 主域（统一到 payoncepdf.com，避免重复内容）
+https://www.payoncepdf.com/*  https://payoncepdf.com/:splat  301
+
+# 干净路径：四页各自独立 URL（参照 zhuazhua.video 的 / /download /pricing /help）
+# 中文站
+/download   /download.html  200
+/pricing    /pricing.html   200
+/help       /help.html      200
+
+# 英文站（/en/ 下同样四页）
+/en/            /en/index.html      200
+/en/download    /en/download.html   200
+/en/pricing     /en/pricing.html    200
+/en/help        /en/help.html       200
+
+# 旧路径兼容：单页时代的 index.en.html 与 #锚点入口，避免老链接 404
+/index.en.html  /en/  301
+/zh/            /     301
+
+# 说明：
+# - 中文为默认版本（x-default）；英文在 /en/ 下，各有首页/下载/价格/帮助四页。
+# - Gumroad 商品未创建，pricing 页购买按钮为明确占位（href="#gumroad-pending"），不跳无效结账页。
+# - 法务与授权说明放在各页 footer，不伪造独立条款页。
+# - 旧站 site/ 的浅色多页是独立部署物，与本 Pages 站无关。

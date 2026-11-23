@@ -35,6 +35,7 @@ import type {
   UpdateCheckResult,
   UpdateSettings,
 } from "./types";
+import type { SelfCheckReport } from "./selfcheck";
 
 // CONTRACT §5：Tauri 环境检测。所有 Tauri 模块一律动态 import，
 // 保证浏览器预览时不会因静态导入桌面插件而报错。
@@ -43,6 +44,7 @@ export const IS_TAURI = "__TAURI_INTERNALS__" in window;
 // 命令名集中管理，避免前端调用后端没有的命令或拼写不一致（CONTRACT §3）。
 export const COMMANDS = {
   getAppInfo: "get_app_info",
+  runSelfCheck: "run_self_check",
   merge: "merge_pdfs",
   split: "split_pdf",
   compress: "compress_pdf",
@@ -305,6 +307,17 @@ export async function getAppInfo(): Promise<AppInfo> {
     };
   }
   return tauriInvoke<AppInfo>(COMMANDS.getAppInfo, {});
+}
+
+/**
+ * F21 应用内功能自检：真跑本地引擎并产出结构化报告。
+ * 浏览器预览模式没有 Rust/PDFium，明确拒绝，**绝不伪造自检报告**。
+ */
+export async function runSelfCheck(): Promise<SelfCheckReport> {
+  if (!IS_TAURI) {
+    throw new Error("预览模式不支持功能自检：请在桌面版 PayOnce PDF 中运行");
+  }
+  return tauriInvoke<SelfCheckReport>(COMMANDS.runSelfCheck, {});
 }
 
 export async function getLicenseState(): Promise<LicenseState> {

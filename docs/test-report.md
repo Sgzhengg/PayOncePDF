@@ -1504,3 +1504,68 @@ F18 此前把内容流坐标字符框直接回传，前端按「屏幕→显示 
 
 - 只甄别展示，**不改变错误码语义**，也不改变「失败即拒绝、不写文件」的安全边界。
 - 纯英文业务原因（本项目暂无）会被当作技术噪音回退到通用文案——这是防泄漏的刻意取舍。
+
+---
+
+## 37. 试用 → 缴费 → 买断 流程分叉（2026-11-24）
+
+### 37.1 需求与决策
+
+用户决策（参考 `zhuazhua.video` 的下载页 / 价格页设置）：点击「下载」与点击「购买」装的是同一个安装包，都先进入 7 天试用；试用到期时，下载入口（未付款）弹缴费窗口让用户点击缴费，购买入口（已付款并激活）自动进入买断永久模式。购买按钮采用「**先付款再试用**」：Gumroad 结账 → 激活码 → 同一个安装包 → 7 天试用 → 到期自动永久。
+
+### 37.2 实现
+
+| 层 | 改动 |
+|---|---|
+| 纯逻辑 | 新增 `src/lib/commerce.ts`：`PAYMENT_URL`、`shouldShowPaywall()`（仅 `expired && !canExport` 为真）、`licenseHeadline()`、`openPaymentPage()`（opener 插件 / 浏览器回退） |
+| UI | 新增 `src/components/PaywallDialog.tsx`：到期缴费窗口，主按钮「点击缴费 · $39 一次买断 →」，次按钮跳授权面板输入激活码；`App.tsx` 启动时、`startJob` 导出被拦时自动弹窗，运行中每 60 秒纯本地轮询一次授权状态、到点即弹（已有对话框不打断）；`active` 状态永不弹；激活成功后自动关窗 |
+| 授权面板 | `LicensePanel.tsx` 增加缴费按钮，`active` 文案改为「已激活（买断）· 永久使用」；`Sidebar.tsx` 的 `DialogView` 增加 `paywall` |
+| 官网 | 中英 8 页统一流程文案：下载页「立即开始 7 天试用」+ 到期弹窗说明；价格页「先付款拿激活码 → 同样 7 天试用 → 到期自动永久」+ 新增「购买与下载的区别」FAQ；帮助页新增试用到期 FAQ 并同步 JSON-LD；首页 CTA 区写明两条入口分叉 |
+| 文档 | PRD §F8、用户手册、`site-cloudflare/README.md` 同步 |
+
+### 37.3 验证（2026-11-24）
+
+- `npm test` **52 PASS / 0 FAIL**（原 48 + 新增 `tests/trial-paywall.test.mjs` 4 条：试用期内不弹、到期弹、已激活永不弹、缴费地址不伪造 Gumroad 直链）；`package.json` test 脚本已纳入。
+- `npm run typecheck` / `npm run build` 通过（67 modules）。
+- 官网 8 页：9 条站内链接全 200；每页导航 4 项、各 1 个 active；`a/div/section/nav/details/p` 标签配平；JSON-LD（含帮助页新增 FAQ 条目）全部可解析；全站无 `gumroad.com/l/` 假结账链接；价格页 Gumroad 占位仍为 `href="#gumroad-pending"` + `aria-disabled="true"`。
+- 纯前端改动，**未重建安装包**；§34.5 的 `PayOnce-PDF-Setup-1.0.0.exe` 仍是唯一有效安装包，新弹窗需随下一次安装包发布才能进入真机。
+
+### 37.4 边界（诚实）
+
+- 安装包未完成 Authenticode 签名，官网下载入口仍以邮件登记发放，**未伪造真实下载链接**；签名发布后替换 `mailto:` 即可。
+- Gumroad 商品未创建：购买按钮仍是占位；客户端 `PAYMENT_URL` 指向 `https://payoncepdf.com/pricing`，商品上线后改为真实结账直链。
+- 未改 Rust 授权逻辑：`trial.json` / `activation.json` / Ed25519 验签 / E2005 语义全部不变，弹窗只是前端呈现；试用到期仍只拦导出、不删除或改写文件。
+
+---
+
+## 38. 应用内功能自检 F21（2026-11-24，参考 Grabber）
+
+### 38.1 需求与参考
+
+用户提出真机 GUI 测试工作量大，希望先自检能自动验的功能、剩下的再真机测，并指定参考 Grabber。Grabber 的做法：`设置 → 运行自检` → Rust 逐条 `{case, ok, ms, detail}` → 报告写下载目录 `selftest-*.json` → 前端显示通过数并可复制全部结果 → 真机手册只保留自检覆盖不了的用例（SET-08 之外的人工清单）。
+
+### 38.2 实现
+
+| 层 | 改动 |
+|---|---|
+| Rust 命令 | 新增 `src-tauri/src/commands/selfcheck.rs`：`run_self_check`（`spawn_blocking`）+ `run_self_check_blocking`。31 条用例分 `env.*`(7) / `logic.*`(8) / `engine.*`(15) / 可选 OCR(1)；内置 lopdf 样本 PDF 真跑 qpdf / lopdf / PDFium，报告 `payonce.selftest/1` 写到下载目录，含 `coverage.needs_real_device` 12 项 |
+| 启动期入口 | `lib.rs` setup 里仅当 `PAYONCEPDF_SELFCHECK=1` 时自动跑一次并写 `PAYONCEPDF_SELFCHECK_OUT`（`.done` 标记），供无人值守回归；普通启动零影响 |
+| 前端 | `src/lib/selfcheck.ts`（DTO + 重算汇总 / 分组 / 复制文本纯函数）、`src/components/SelfCheckDialog.tsx`、`Sidebar.tsx` 增加「运行自检」入口、`App.tsx` 挂对话框、styles.css 增加 `.selfcheck-*`；`backend.ts` 增加 `runSelfCheck()`，预览模式明确拒绝 |
+| 契约与文档 | `CONTRACT.md` 命令表、`docs/requirements/PRD.md` §22.26、`docs/user-manual.md` §1.5 / §2 / §7、`docs/real-device-test-plan.md` §7 / §9（自检与真机分工、缩减原则） |
+| 测试脚本 | `tests/selfcheck-contract.test.mjs`（7 条纯函数契约）、`tests/selfcheck-real-window.mjs`（启动真实 Tauri 进程跑无人值守自检，可选 CDP 验证 UI） |
+
+### 38.3 验证（2026-11-24）
+
+- `npm test` **59 PASS / 0 FAIL**（原 52 + 新增 7 条：`summarizeSelfCheck` 重算汇总不受后端 summary 影响、三种结论、分组保序、跳过标记、Windows/Unix 报告目录、复制文本含真机清单、缺字段鲁棒性）；`npm run typecheck` / `npm run build` 通过。
+- `cargo check --lib` 通过；`cargo test --lib` **95 PASS / 0 FAIL**（含新增 3 条自检模块单测 + 2 条 OCR 路径单测）。
+- **真实 Tauri 窗口自检**（debug 构建 + `node tests/selfcheck-real-window.mjs`）：`summary = {total:31, passed:31, failed:0, skipped:0}`，耗时 4128ms；报告落在 `C:\Users\ASUS\Downloads\selftest-1795476236576.json`，副本 `tests/out/selfcheck-real-window.json`；覆盖 27 个功能标签 / 12 项真机剩余。
+- **自检抓到并修复一个真实缺陷**：首次运行 OCR 用例报 `E1006`，原因是 Tauri 的 `resource_dir()` 在 Windows 上带 `\\?\` 扩展长度前缀，tesseract 内部用 `/` 拼 `<tessdata>/eng.traineddata` 时打不开文件。`src-tauri/src/engine/ocr.rs` 新增 `tessdata_arg_for_external()` 去掉前缀（macOS/Linux 原样），并补 2 条单测；同时把「具体语言包缺失」由 FAIL 改为 SKIP（环境缺件不算引擎缺陷）。修复后复跑 31/31 全通过，OCR 链路真的跑出了输出。
+- **前端面板**：浏览器预览模式验证「明确拒绝 + 按钮 disabled」；再把真窗口产出的真实报告注入测试页，结果态渲染出 31 条用例、4 个分组、12 项真机清单，`scrollWidth = innerWidth = 1280` 无横向溢出。截图 `tests/out/selfcheck-panel-preview.png` / `selfcheck-panel-results.png`。
+
+### 38.4 边界（诚实）
+
+- 本机 WebView2 未开放 CDP 调试端口，**前端面板在真实 Tauri 窗口里点击运行**这一步未验证；浏览器注入验证的是渲染逻辑，不是真窗口 IPC。真机上仍需点一次「运行自检」（成本远低于整轮用例），见 `docs/real-device-test-plan.md` §9。
+- 只构建了 debug 可执行文件用于验证，**未重建安装包**：`PayOnce-PDF-Setup-1.0.0.exe` 仍是唯一有效安装包，且不含 F21；新机制需随下次打包发布才能进入用户机器。
+- 自检 PASS ≠ 真机 PASS；自检结果不能自动写进真机 CSV 的 PASS，也不能替代 §9.3 列出的安装/对话框/拖放/高 DPI/断网/性能/兼容性等人工用例。
+- 报告按设计写到下载目录，本次验证共留下 3 份 `selftest-*.json`（未删除，供对照）；自检中间文件在系统临时目录并已清理。
+- 本次改动**未提交、未推送**。

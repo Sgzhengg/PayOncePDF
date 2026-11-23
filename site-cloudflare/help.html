@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>帮助与常见问题 · 本地离线 PDF 编辑器 — PayOnce PDF</title>
+<meta name="description" content="PayOnce PDF 帮助中心：隐私与联网请求、编辑与转换边界、OCR、签名支持、系统要求、授权与退款、安装安全。明确说明不支持项，不静默损坏文件。">
+<meta name="theme-color" content="#0b0f16">
+<link rel="stylesheet" href="/styles.css">
+<link rel="canonical" href="https://payoncepdf.com/help">
+<link rel="alternate" hreflang="en" href="https://payoncepdf.com/en/help">
+<link rel="alternate" hreflang="zh-CN" href="https://payoncepdf.com/help">
+<link rel="alternate" hreflang="x-default" href="https://payoncepdf.com/help">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[
+{"@type":"Question","name":"文件真的不上传吗？凭什么相信？","acceptedAnswer":{"@type":"Answer","text":"全部处理在本机完成。运行时只有三类可枚举的网络请求：一次性激活、你主动开启的更新检查、你主动安装 OCR 语言包。文件内容与文件名从不联网。"}},
+{"@type":"Question","name":"能像 Word 那样重排、能高质量转成 Word/Excel 吗？","acceptedAnswer":{"@type":"Answer","text":"不能。F19 是就地替换，不重排、不回流。高保真 Word/Excel 转换与 WYSIWYG 编辑不在范围内；F14 导出的是文字层，不还原版式、表格与图片。"}},
+{"@type":"Question","name":"需要订阅、需要绑卡吗？怎么退款？","acceptedAnswer":{"@type":"Answer","text":"不需要。7 天完整试用无需账号、无需信用卡；一次买断 $39 / ¥199，含 12 个月 1.x 更新，7 天无理由退款。"}},
+{"@type":"Question","name":"试用到期会怎样？","acceptedAnswer":{"@type":"Answer","text":"不会删除或改写任何文件，只暂停导出。未购买的用户在软件内看到缴费窗口，点击缴费完成一次买断并输入激活码即可继续使用；已购买并激活过的用户到期自动进入买断永久模式，不再弹窗。"}}
+]}
+</script>
+</head>
+<body>
+
+<div class="topbar"><b>支持 Windows / macOS</b> · 7 天全功能免费试用，无需绑卡 · 文件永不上传</div>
+
+<header>
+  <div class="wrap nav">
+    <a class="brand" href="/">PayOnce <b>PDF</b></a>
+    <nav class="links">
+      <a href="/">首页</a>
+      <a href="/download.html">下载</a>
+      <a href="/pricing.html">价格</a>
+      <a class="active" href="/help.html">帮助</a>
+    </nav>
+    <a class="lang" href="/en/help.html" aria-label="Switch to English">EN</a>
+    <details class="mnav">
+      <summary>菜单</summary>
+      <div class="mnav-box">
+        <a href="/">首页</a><a href="/download.html">下载</a><a href="/pricing.html">价格</a><a class="active" href="/help.html">帮助</a>
+        <a href="/en/help.html">English</a>
+      </div>
+    </details>
+  </div>
+</header>
+
+<main>
+<div class="wrap">
+  <div class="page-head">
+    <span class="eyebrow">常见问题 · 诚实边界</span>
+    <h1>帮助中心</h1>
+    <p>我们宁可把「不支持什么」写清楚，也不让你买了才发现。</p>
+  </div>
+</div>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h2>隐私与联网</h2></div>
+    <div class="faq">
+      <div class="qa"><h3>文件真的不上传吗？凭什么相信？</h3><p>全部处理在本机完成。运行时只有三类可枚举的网络请求：一次性激活、你主动开启的更新检查、你主动安装 OCR 语言包。文件内容与文件名从不联网。官网提供 Windows / macOS 的抓包自查步骤，你可以自己核对——我们不用「零网络请求」这种不准确的说法。</p></div>
+      <div class="qa"><h3>断网能用吗？</h3><p>能。除首次激活、主动更新检查、主动安装 OCR 语言包这三个动作外，核心编辑处理完全离线。断网环境下照常合并、压缩、批注、就地改字与文档比对。</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h2>编辑、转换与识别</h2></div>
+    <div class="faq">
+      <div class="qa"><h3>能像 Word 那样重排、能高质量转成 Word/Excel 吗？</h3><p>不能，这点我们说清楚。F19 是就地替换，不重排、不回流；变长的文字可能盖住右侧，提交前会提示你。高保真 Word/Excel 转换与 WYSIWYG 编辑不在范围内；F14 导出的是文字层（TXT/HTML/DOCX/XLSX），不还原版式、表格与图片。</p></div>
+      <div class="qa"><h3>支持签名吗？支持复选框、图章吗？</h3><p>支持创建 AcroForm 文本域签名与水印、密码加密；复选框、单选、下拉、计算脚本与手写图章暂不支持，写了会明确拒绝而不是静默坏掉。</p></div>
+      <div class="qa"><h3>扫描件能改字、能比对吗？</h3><p>扫描件没有文字层，需先走本地 OCR（可选语言包，含简体中文与英文）。OCR 完成后才能框选改字或做文字层比对；无文字层时工具会明确提示，绝不静默报「无差异」。</p></div>
+      <div class="qa"><h3>文档比对比的是什么？</h3><p>只比对文字层，逐页给出增删改差异，可导出 TXT 报告。不识别图片与版式变化；页数不同时多出的页按整页新增/删除列出。合同、财务、法律文件的结果需人工复核。</p></div>
+      <div class="qa"><h3>压缩会损失文字层吗？</h3><p>验收目标是 20MB 压到 ≤5MB 且文字层保留、可搜索可复制。这不是绝对「无损」承诺——若源文件特殊导致文字层无法保留，工具会明确说明，不会静默产出不可搜索的文件。</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h2>系统、授权与购买</h2></div>
+    <div class="faq">
+      <div class="qa"><h3>支持哪些系统？一份授权能装几台？</h3><p>Windows 10/11 与 macOS 11+（Apple 芯片与 Intel）。一份授权最多 3 台设备，无需账号，激活码离线校验。移动端/iOS 暂不支持。</p></div>
+      <div class="qa"><h3>需要订阅、需要绑卡吗？怎么退款？</h3><p>不需要。7 天完整试用无需账号、无需信用卡；一次买断 $39 / ¥199，含 12 个月 1.x 更新，7 天无理由退款。买断不是订阅，不存在自动续费。国内支付渠道尚未开放，人民币价为参考定价。</p></div>
+      <div class="qa"><h3>试用到期会怎样？会删文件吗？</h3><p>不会删除或改写任何文件，只是暂停导出。未购买的用户会在软件内看到缴费窗口，点击缴费 → Gumroad 完成一次买断 → 输入激活码即可继续；已购买并激活过的用户，到期自动进入买断永久模式，不会弹窗。试用期不自动扣费。</p></div>
+      <div class="qa"><h3>点击「购买」和「下载」有什么区别？</h3><p>两个入口装的是同一个安装包，都先 7 天试用；购买入口先付款拿激活码，到期自动转永久，下载入口到期弹缴费窗口。</p></div>
+      <div class="qa"><h3>通过什么渠道购买？</h3><p>计划通过 Gumroad 上架销售。商品尚未创建，购买按钮为明确占位，不会跳到无效结账页；就绪后替换为真实商品链接。在此之前可邮件订阅上线提醒，或先申请免费试用。</p></div>
+      <div class="qa"><h3>安装包安全吗？</h3><p>项目坚持白名单开源组件（PDFium、qpdf、Tesseract、lopdf），不引入 AGPL 许可组件。更新包有签名校验，失败保留旧版本可回滚。当前安装包仍在签名与发布准备中，下载入口上线前不会伪造可点击链接。</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head"><h2>还没解决？</h2><p>直接写信，真人回复，不是工单机器人。</p></div>
+    <div class="cta" style="border:0;background:transparent;padding:0">
+      <div class="btns">
+        <a class="btn primary" href="mailto:hello@payoncepdf.com">hello@payoncepdf.com</a>
+        <a class="btn ghost" href="/download.html">免费试用 7 天</a>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-row">
+      <a class="brand" href="/">PayOnce <b style="color:var(--pri)">PDF</b></a>
+      <a href="/download.html">下载</a>
+      <a href="/pricing.html">价格</a>
+      <a href="/help.html">帮助</a>
+      <a href="mailto:hello@payoncepdf.com">hello@payoncepdf.com</a>
+    </div>
+    <div class="legal" id="terms">
+      <p><b>隐私政策：</b>不收集邮箱，不做遥测；文件内容与文件名永不上传。运行时仅有一次性激活、你主动开启的更新检查、你主动安装 OCR 语言包三类网络请求。</p>
+      <p><b>服务条款与授权条款：</b>一份授权最多 3 台设备，授权本身不过期，含 12 个月 1.x 免费更新；7 天完整试用无需绑卡，7 天无理由退款；2.x 大版本老用户 5 折。软件按「现状」提供，明确不支持项见本页。</p>
+      <p>© 2026 PayOnce PDF. 定价与功能以本站为准；安装包签名发布前，下载与购买链接为占位。</p>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

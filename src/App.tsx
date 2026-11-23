@@ -60,6 +60,9 @@ import type { JobStatus, ProgressState } from "./components/ProgressBar";
 import { AboutDialog } from "./components/AboutDialog";
 import { LicensePanel } from "./components/LicensePanel";
 import { NetworkPanel } from "./components/NetworkPanel";
+import { PaywallDialog } from "./components/PaywallDialog";
+import { SelfCheckDialog } from "./components/SelfCheckDialog";
+import { shouldShowPaywall } from "./lib/commerce";
 
 // 参数 → 契约 §3 命令与 §4 请求类型的映射。所有请求带 jobId，密码等可选字段按需展开。
 function buildRequest(
@@ -669,7 +672,8 @@ export default function App() {
     opts?: { keepPreview?: boolean; chainableResult?: boolean },
   ): Promise<string[] | null> => {
     if (license && !license.canExport) {
-      setStatusText("试用已结束；文件仍在，激活后可导出。仅限制导出，不删除文件。");
+      setStatusText("试用已结束；文件仍在，缴费激活后可导出。仅限制导出，不删除文件。");
+      if (shouldShowPaywall(license)) setDialog("paywall");
       return null;
     }
     const jobId = crypto.randomUUID();
@@ -812,7 +816,9 @@ export default function App() {
   const handleActivate = async (key: string) => {
     const next = await activateLicense(key);
     setLicense(next);
-    setStatusText(next.status === "active" ? "激活成功，可继续导出" : "授权状态已更新");
+    // 激活成功即回到工作区：已买断用户到期自动永久，不必再停留在缴费/授权窗口。
+    if (next.status === "active") setDialog(null);
+    setStatusText(next.status === "active" ? "激活成功，已转入买断永久模式" : "授权状态已更新");
   };
 
   const handleLogging = (value: boolean) => {
@@ -834,12 +840,35 @@ export default function App() {
       .catch(() => {});
     getLicenseState()
       .then((v) => {
-        if (alive) setLicense(v);
+        if (!alive) return;
+        setLicense(v);
+        // 试用到期且未激活：启动即弹缴费窗口；已买断用户不弹，到期直接永久。
+        if (shouldShowPaywall(v)) setDialog("paywall");
       })
       .catch(() => {});
     return () => {
       alive = false;
     };
+  }, []);
+
+  // 试用在软件运行期间到点时也要弹缴费窗口，不必等重启或点「导出」。
+  // 60 秒一次纯本地读取（不联网）；已有对话框时不打断用户。
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      getLicenseState()
+        .then((v) => {
+          setLicense((prev) =>
+            prev && prev.status === v.status && prev.canExport === v.canExport
+              ? prev
+              : v,
+          );
+          if (shouldShowPaywall(v)) {
+            setDialog((cur) => (cur === null ? "paywall" : cur));
+          }
+        })
+        .catch(() => {});
+    }, 60_000);
+    return () => window.clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -1106,6 +1135,14 @@ export default function App() {
         />
       ) : null}
       {dialog === "network" ? <NetworkPanel onClose={() => setDialog(null)} /> : null}
+      {dialog === "selfcheck" ? <SelfCheckDialog onClose={() => setDialog(null)} /> : null}
+      {dialog === "paywall" ? (
+        <PaywallDialog
+          state={license}
+          onOpenLicense={() => setDialog("license")}
+          onClose={() => setDialog(null)}
+        />
+      ) : null}
     </div>
   );
 }

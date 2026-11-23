@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { LicenseState } from "../lib/types";
 import { describeError } from "../lib/errors";
+import { openPaymentPage } from "../lib/commerce";
 import { TextField } from "./Field";
 import { Dialog } from "./Dialog";
 
@@ -13,7 +14,7 @@ interface LicensePanelProps {
 function statusText(state: LicenseState | null): string {
   if (!state) return "读取中…";
   if (state.status === "trial") return `试用中，剩余 ${state.trialDaysLeft} 天`;
-  if (state.status === "active") return "已激活（买断）";
+  if (state.status === "active") return "已激活（买断）· 永久使用";
   return "试用已结束";
 }
 
@@ -59,8 +60,20 @@ export function LicensePanel({ state, onActivate, onClose }: LicensePanelProps) 
       </dl>
 
       <p className="inline-note">
-        试用到期后只限制导出，不会删除或改写任何文件；文件仍在，激活后可继续导出。
+        试用到期后只限制导出，不会删除或改写任何文件；点击缴费一次买断并输入激活码后即可永久使用。已激活的用户到期自动转入买断模式，不会再弹缴费窗口。
       </p>
+
+      {state?.status !== "active" ? (
+        <div className="license-form">
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => void openPaymentPage()}
+          >
+            点击缴费 · $39 一次买断 →
+          </button>
+        </div>
+      ) : null}
 
       <div className="license-form">
         <TextField

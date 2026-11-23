@@ -35,6 +35,7 @@
 | 命令 | Payload 类型 | 对应 PRD |
 |---|---|---|
 | `get_app_info` | `{}` → `AppInfo` | §8 自检 / §17 sidecar 自检 |
+| `run_self_check` | `{}` → `SelfCheckReport` JSON（`schema` / `env` / `summary` / `cases` / `coverage` / `path`） | **F21** 应用内功能自检：环境 / 纯逻辑 / 真实引擎三层，报告写下载目录 `selftest-*.json`；不占导出授权、不联网、不读用户文件。可选 `PAYONCEPDF_SELFCHECK=1` + `PAYONCEPDF_SELFCHECK_OUT` 在启动期无人值守跑一次，见 `docs/real-device-test-plan.md` §9 |
 | `merge_pdfs` | `MergeRequest` → `JobResult` | F1 |
 | `split_pdf` | `SplitRequest` → `JobResult` | F2 |
 | `compress_pdf` | `CompressRequest` → `JobResult` | F3 |
@@ -178,7 +179,8 @@ src-tauri/src/
    ├─ extras.rs      # F10–F14 五个命令（复用 jobs::execute；中文水印分支调 more）
    ├─ objects.rs     # F15 四个命令（导出类复用 execute；书签列表为只读）
    ├─ more.rs        # F16 四个命令（打印/邮件、语言包列表与安装）
-   └─ app.rs         # get_app_info / license / logging / open_output_folder
+   ├─ app.rs         # get_app_info / license / logging / open_output_folder
+   └─ selfcheck.rs   # F21 应用内功能自检（内置样本 PDF 真跑引擎，产出 JSON 报告）
 ```
 
 `JobCtx.app` 为 `Option<&AppHandle>`：真机运行时由命令层注入 `Some(app)`，引擎级文件级单测可注入 `None` 并直接传入 `&Pdfium`，从而不依赖 Tauri runtime 即可验证真实 PDF 产物（`ctx.app()` 在离线模式下返回 E2004）。

@@ -1,0 +1,13 @@
+# Cloudflare Pages 项目配置
+# 部署命令：npx wrangler pages deploy . --project-name payoncepdf --branch main
+# 或把本目录作为 GitHub 仓库的 Pages 构建输出目录（见 README.md）
+
+name = "payoncepdf"
+compatibility_date = "2026-11-23"
+
+# 本目录就是静态输出目录：8 页 HTML + 共享 styles.css，无构建步骤。
+pages_build_output_dir = "."
+
+# 注意：本项目不使用 KV / D1 / R2 / Workers 函数，纯静态站。
+# 自定义域名 payoncepdf.com 在 Cloudflare Dashboard 的 Pages 项目里绑定，
+# 不写在这里（域名需先在 Cloudflare 账号下完成 NS 接入）。

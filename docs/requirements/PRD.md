@@ -245,10 +245,12 @@
 
 ### F8 授权与试用
 
-- 7 天全功能试用，无需邮箱；
+- 7 天全功能试用，无需邮箱；两条官网入口（下载 / 购买）装的是同一个安装包，**安装后都先进入 7 天试用**；
+- 下载入口（未付款）：试用到期时前端主动弹出**缴费窗口**，点击缴费 → Gumroad 一次买断 → 输入激活码 → 永久使用；
+- 购买入口（先付款）：Gumroad 付款后拿到激活码；试用到期自动转入买断永久模式，**不弹缴费窗口**（`active` 状态永不过期）；
 - 买断密钥：Gumroad 购买后发放 `PAYONCE-XXXX-XXXX-XXXX`；
 - 激活：首次联网校验一次，之后离线可用（缓存签名）；
-- **验收**：断网可正常使用；试用到期后只限制导出，不删除用户文件。
+- **验收**：断网可正常使用；试用到期后只限制导出，不删除用户文件；`expired` 时启动/导出被拦弹出缴费窗口，`active` 永不弹窗。
 
 ### F9 自动更新
 
@@ -904,4 +906,22 @@ payoncepdf/
 **边界**：不改变错误码语义；不向用户暴露堆栈/路径/内部错误串；不替代「失败即拒绝、不写文件」的安全边界。
 
 **验证**：`npm test` **48/0**（新增 7 条 `error-detail.test.mjs` 纯函数 + 1 条静态契约锁），`tsc --noEmit` / `npm run build` 通过。浏览器预览模式的 mock 不产生这些失败，真机未验。
+
+### 22.26 F21 应用内功能自检（2026-11-24，参考 Grabber）
+
+**触发**：用户提出「真机测试工作量大，能否先自检一部分功能，剩下不能自检的再真机测」，并要求参考 Grabber 的做法。Grabber 的设置里有「运行自检」：后端逐条跑 `{case, ok, ms, detail}`、把 `selftest-*.json` 写到下载目录、前端显示通过数并一键复制全部结果；其真机手册把「自检」列为一条用例（SET-08），其余只能真机验的项目仍保留人工清单。
+
+**本项目此前缺口**：只有 `get_app_info` 暴露的 sidecar **组件存在性**检查（`sidecar::self_check`），没有功能级自检；`docs/real-device-test-plan.md` 的 G0–G9 全部要求人工在 GUI 里跑一遍，功能链路的回归代价高。
+
+**实现**（命令 `run_self_check`，`src-tauri/src/commands/selfcheck.rs`）：
+- 共 31 条用例（`env.*` 7 / `logic.*` 8 / `engine.*` 15 / 可选 OCR 1）：`env.*`（目录可写、qpdf/pdfium/tesseract/tessdata 就绪、授权状态、界面与引擎版本同源）、`logic.*`（页码、书签层级、diff、旋转坐标、参数解析、原文件保护、错误码）、`engine.*`（内置样本 PDF 真跑合并 / 切页 / 加密解密 / 文字层 / 渲染 / 改字 / 删页 / 书签写回 / 比对 / 图片与文本转 PDF / 压缩 / 原子提交）。OCR 作为可选链路：组件齐全才跑，缺失标 `skipped`，**不算通过**。
+- 报告 `payonce.selftest/1`：`env` / `summary{total,passed,failed,skipped}` / `cases`（含 `group`、`feature`、耗时、明细）/ `coverage{self_checked,needs_real_device}` / `path`；写到下载目录 `selftest-<时间戳>.json`。12 项「仍需真机验证」清单随报告返回，与 `docs/real-device-test-plan.md` §9 同源。
+- 前端：`src/lib/selfcheck.ts`（DTO + 重算汇总 / 分组 / 复制文本纯函数）、`src/components/SelfCheckDialog.tsx`（侧栏「运行自检」入口、逐项结果、复制全部结果、打开报告文件夹、真机剩余清单）、`backend.ts` 增加命令封装。**浏览器预览模式明确拒绝并禁用，绝不伪造自检报告**。
+- 自检不联网、不占导出授权、不读用户文件，中间文件在系统临时目录并清理；报告只含版本 / 组件路径 / 用例结果，不含用户文件名或路径。
+
+**验收**：`summary.failed === 0` 才进入真机人工用例；自检 PASS 只减少「功能跑通」维度的重复手工执行，**不能**自动写入真机 CSV 的 PASS；`skipped > 0` 的项必须保留真机验证。完整分工与缩减原则见 `docs/real-device-test-plan.md` §9，用户操作见 `docs/user-manual.md` §1.5。
+
+**诚实边界**：自检证明的是「本机这些引擎函数能被真实调用并产出合法文件」，不能证明安装包签名、原生对话框、拖放、高 DPI 框选、试用到期弹窗、断网抓包、大文件性能、第三方阅读器兼容；内置样本是 Helvetica 文本 PDF，覆盖不到中文内嵌字体 / 缺字形 / 扫描件。
+
+**验证**：`npm test` 59/0、`npm run typecheck` / `build`、`cargo test --lib` 95/0 全通过；真实 debug 窗口无人值守自检 **31/31、failed=0、4128ms**，并首次运行即抓到并修复了 OCR `\\?\` 路径导致的 E1006 误报。详见 `docs/test-report.md` §38；安装包未重建，前端面板在真窗口内的点击仍需人工确认一次。
 
