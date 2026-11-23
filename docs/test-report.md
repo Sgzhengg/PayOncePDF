@@ -1528,7 +1528,7 @@ F18 此前把内容流坐标字符框直接回传，前端按「屏幕→显示 
 - `npm test` **52 PASS / 0 FAIL**（原 48 + 新增 `tests/trial-paywall.test.mjs` 4 条：试用期内不弹、到期弹、已激活永不弹、缴费地址不伪造 Gumroad 直链）；`package.json` test 脚本已纳入。
 - `npm run typecheck` / `npm run build` 通过（67 modules）。
 - 官网 8 页：9 条站内链接全 200；每页导航 4 项、各 1 个 active；`a/div/section/nav/details/p` 标签配平；JSON-LD（含帮助页新增 FAQ 条目）全部可解析；全站无 `gumroad.com/l/` 假结账链接；价格页 Gumroad 占位仍为 `href="#gumroad-pending"` + `aria-disabled="true"`。
-- 纯前端改动，**未重建安装包**；§34.5 的 `PayOnce-PDF-Setup-1.0.0.exe` 仍是唯一有效安装包，新弹窗需随下一次安装包发布才能进入真机。
+- 本轮为纯前端改动；缴费弹窗已随 2026-11-24 的 NSIS 重建进入安装包（见 §39），但仍需真机点一次确认弹窗时机与缴费外链。
 
 ### 37.4 边界（诚实）
 
@@ -1565,7 +1565,65 @@ F18 此前把内容流坐标字符框直接回传，前端按「屏幕→显示 
 ### 38.4 边界（诚实）
 
 - 本机 WebView2 未开放 CDP 调试端口，**前端面板在真实 Tauri 窗口里点击运行**这一步未验证；浏览器注入验证的是渲染逻辑，不是真窗口 IPC。真机上仍需点一次「运行自检」（成本远低于整轮用例），见 `docs/real-device-test-plan.md` §9。
-- 只构建了 debug 可执行文件用于验证，**未重建安装包**：`PayOnce-PDF-Setup-1.0.0.exe` 仍是唯一有效安装包，且不含 F21；新机制需随下次打包发布才能进入用户机器。
+- 已重建含 F21 的 NSIS 安装包，并用 **release 版主程序**复跑自检 31/31（见 §39）；但「安装态」（NSIS 装完再跑）与真窗口内点击「运行自检」仍未验，真机上需各点一次。
 - 自检 PASS ≠ 真机 PASS；自检结果不能自动写进真机 CSV 的 PASS，也不能替代 §9.3 列出的安装/对话框/拖放/高 DPI/断网/性能/兼容性等人工用例。
 - 报告按设计写到下载目录，本次验证共留下 3 份 `selftest-*.json`（未删除，供对照）；自检中间文件在系统临时目录并已清理。
-- 本次改动**未提交、未推送**。
+- 本轮桌面端 F21、缴费流程、官网 8 页与全部文档已随提交 `48b4022` 推送到 `origin/main`；安装包重建与哈希记录见 §39。
+
+---
+
+## 39. 重建含 F21 自检的 Windows NSIS 安装包（2026-11-24）
+
+### 39.1 背景与命令
+
+§37 / §38 的两轮改动都是纯前端 + Rust 命令新增，此前唯一有效安装包仍是 2026-11-22 的 31,666,789 B 旧包（不含缴费弹窗与 F21）。本轮把两者一起打进发行包，并用开发 minisign 密钥重新签名。
+
+```bash
+export CARGO_HOME=E:/PayOncePDF/.toolchain/cargo RUSTUP_HOME=E:/PayOncePDF/.toolchain/rustup
+export PATH=/e/PayOncePDF/.toolchain/cargo/bin:$PATH CARGO_BUILD_JOBS=1 CARGO_INCREMENTAL=0
+export TAURI_SIGNING_PRIVATE_KEY="$(cat .toolchain/payoncepdf-updater.key)"   # gitignored
+export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=oncepdf-dev-only                      # 开发口令
+npx tauri build --bundles nsis && npm run bundle:rename
+```
+
+`BUILD_EXIT=0` / `RENAME_EXIT=0`，全程 2m48s（release 编译 1m59s，前端 69 modules / 1.05s，makensis 1 个 bundle）。日志 `tests/out/build-selfcheck.log`。构建前把旧包与其 `.sig` 备份到 `tests/out/*.PRE-SELFCHECK.*`（gitignore，不入库）。
+
+### 39.2 交付物
+
+| 项 | 值 |
+|---|---|
+| 安装包 | `src-tauri/target/release/bundle/nsis/PayOnce-PDF-Setup-1.0.0.exe` |
+| 大小 | **31,699,281 B（30.23 MiB）** |
+| SHA-256 | **`bd80c2658e678242949f286b985833851ee3d52dff7a215069d7e54fc41048e0`** |
+| 更新签名 | 同目录 `.exe.sig`，440 B（三段密码学验签通过，见 39.4） |
+| 旧包对照 | 31,666,789 B，SHA-256 `1b238165dd08f77767ea7e5f9e4fe8487b89409822e4efdf65065c75061fc665`，字节已变化 |
+
+### 39.3 「自检确实进了包」的证据
+
+对**未压缩的** `src-tauri/target/release/payoncepdf.exe` 做字符串检查（对 LZMA 压缩的 NSIS 安装包 grep 会假阴性，§14.8 已记此坑）：
+
+| 字符串 | 结果 | 说明 |
+|---|---|---|
+| `run_self_check` | HIT | Tauri 命令已注册 |
+| `payonce.selftest` | HIT | 报告 schema 在包内 |
+| `PAYONCEPDF_SELFCHECK` | HIT | 启动期无人值守入口 |
+| `needs_real_device` | HIT | 12 项真机清单 |
+| `tessdata_arg_for_external` | MISS | release 优化把函数名内联/裁剪，**不代表修复缺失**；OCR 用例真跑通过即为证 |
+
+其余证据：`dist/assets/index-BNJY0xNU.js` 含「运行自检」（前端面板进包）；生成的 `src-tauri/target/release/nsis/x64/installer.nsi` 共 68 条 `File /a`，其中 2 条是 `resources\tessdata\chi_sim.traineddata` / `eng.traineddata`（OCR 语言数据随包）。
+
+> 注：`vite.config.ts` 的 `build.target` 随 `TAURI_ENV_PLATFORM` 切换（打包时 `chrome105`，普通 `npm run build` 为 `safari16`），因此包内前端 JS 的文件名哈希与本地 `dist/` 不同属正常——源码一致、转译目标不同；本节字符串检查取自打包当次产物。
+
+**release 版真跑自检**：`PAYONCE_EXE=.../target/release/payoncepdf.exe node tests/selfcheck-real-window.mjs` → `summary = {total:31, passed:31, failed:0, skipped:0}`、`elapsed_ms=4602`、coverage 27 功能 / 12 真机项；报告 `tests/out/selfcheck-real-window.json`（debug 版报告另存 `selfcheck-debug-window.json`）。CDP 面板验证仍跳过（本机 WebView2 未开放调试端口），与 §38.4 一致。
+
+### 39.4 更新签名验签
+
+`python tests/verify-updater-signature.py`（用 `tauri.conf.json` 公钥，无需私钥）：key id `654e340d1fe4b8e5` 匹配、`ED / BLAKE2b-512` prehashed；① 文件签名 OK ② 全局签名（trusted comment）OK ③ 篡改 1 bit 负向自检 OK → 签名覆盖当前 30.23 MiB 包，非旧产物。trusted comment 里仍是 Tauri 默认名 `PayOnce PDF_1.0.0_x64-setup.exe`（改名前的名字），签名覆盖文件字节，验签有效，上线前建议统一命名。
+
+### 39.5 边界（诚实）
+
+- **仍无 EV / Authenticode 签名**，Windows SmartScreen 会警告；更新端点占位、minisign 为开发密钥。**当前包仅供内部验证，不可对外分发**，官网下载页保持邮件登记、未伪造下载链接。
+- 「安装态」（跑 NSIS 装完再从安装目录启动）未经真机验证；`docs/real-device-test-plan.md` 的 B 路径与 G8 用例仍需执行，且**新包哈希已变**，任何哈希核对都要用 39.2 的值。
+- 真窗口内手动点「运行自检」、缴费弹窗时机仍未验；自检 PASS 不能写进真机 CSV 的 PASS（§9.3）。
+- 本轮只重建了 Windows NSIS；macOS dmg / app 未构建、未签名、未公证。
+- 本节与 README / 价格口径同步随后续提交推送；代码主体已在 `48b4022`。

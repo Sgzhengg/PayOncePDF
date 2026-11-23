@@ -1,5 +1,5 @@
 {
-  "_status": "2026-11-20 21:52 用户授权「由你拍板」：对标 UPDF 后重新定价为 $39 / ¥199，早鸟 $29 / ¥149，一把钥匙最多 3 台设备。2026-11-16 的价格冲突裁决保留在 previous_resolution 里作为历史。",
+  "_status": "2026-11-20 21:52 用户授权「由你拍板」：对标 UPDF 后重新定价为 $39 / ¥199，一把钥匙最多 3 台设备。2026-11-24 用户决定取消首发 14 天早鸟，统一 $39 / ¥199 单一标价；early_bird_* 字段仅作历史记录，不再执行。2026-11-16 的价格冲突裁决保留在 previous_resolution 里作为历史。",
   "product": "PayOnce PDF",
   "product_cn": "一次付费 PDF",
   "domain": "https://payoncepdf.com",
@@ -8,6 +8,8 @@
   "price_cny": 199,
   "early_bird_usd": 29,
   "early_bird_cny": 149,
+  "early_bird_status": "cancelled_2026-11-24",
+  "_early_bird_note": "历史字段，保留仅为兼容 tests/rename-contract.test.mjs 与 scripts/preflight-real-device.py 的既有断言；Gumroad 与官网一律按 $39 / ¥199 单一标价，不设折扣码。",
   "max_devices_per_key": 3,
   "_canonical_source": "docs/updf-parity-decision.md §1 与 docs/requirements/PRD.md §22.10（2026-11-20 拍板）。",
   "pricing_v2": {
@@ -31,10 +33,10 @@
       "单档，不设 $10 入门档 / 团队席位档 / AI 加购",
       "12 个月 1.x 更新、2.x 老用户五折、授权本身不过期",
       "7 天全功能试用不绑卡不留邮箱、7 天无理由退款",
-      "定金 $9 / ¥59 保持可退，尾款随早鸟价变为 $20 / ¥90"
+      "定金 $9 / ¥59 保持可退，尾款 $30 / ¥140（按 $39 / ¥199 单一标价；早鸟价已取消）"
     ],
     "manual_todo": [
-      "Gumroad 商品价格与首发折扣码改为 $39 / $29",
+      "Gumroad 商品统一标价 $39 / ¥199，不设首发折扣码（2026-11-24 取消早鸟）",
       "生产激活服务按 key 记录不同机器指纹，上限 3 台",
       "国内渠道 ¥199 展示（渠道尚未开放）",
       "上线前逐条复核竞品当前官方定价"

@@ -2,20 +2,20 @@
 
 > **一个不订阅、不注册、文件内容永不上传的本地 PDF 工具箱。**（PRD §2）
 > 合并 / 拆分 / 压缩 / 图片互转 / 本地 OCR / 签名与表单 / 批量 / **就地改字 / 批注 / 页面管理 / 水印与加密 / 文档导出 / 文档对象（表单·脱敏·书签）/ 文档比对 / 文本转 PDF / 打印与扩展**，
-> **十六个工具全部在本机完成**；`$39 / ¥199` 一次买断，含 12 个月 1.x 更新，7 天试用、7 天无理由退款。首发 14 天早鸟 `$29 / ¥149`（限时，到期恢复原价）。**定价已于 2026-11-16 拍板**，依据见 `docs/pricing-decision.md`；国内渠道尚未开放，人民币价仅作参考。
+> **十六个工具全部在本机完成**；`$39 / ¥199` 一次买断，含 12 个月 1.x 更新，7 天试用、7 天无理由退款。**单一标价，不设早鸟 / 划线折扣**（2026-11-24 用户决定取消早鸟，此前 `$29 / ¥149` 首发折扣作废）。定价依据见 `docs/pricing-decision.md`；国内渠道尚未开放，人民币价仅作参考。
 > 2026-11-16 两轮范围变更：功能面对标 PDFgear 桌面版（PRD §22、`docs/pdfgear-parity-matrix.md`）。
 > **隐私口径**：文件内容与文件名永不上传；运行时网络请求只有三类且可枚举——一次性激活、可选更新检查、用户主动安装 OCR 语言包。不得宣称「零网络请求」。
 > **2026-11-20 F18**：内置阅读视图支持在渲染页拖选文字，把选中文字与页码带入改字 / 批注 / 脱敏；框选只做定位，执行仍走既有命令，同页重复文字会被唯一性守卫拦下。详见 `docs/requirements/PRD.md` §22.12 与 `docs/test-report.md` §21（**真机未验**）。
 > **2026-11-21 F19**：在 F18 选区上可直接「按框选坐标替换」——只改选中那一处，同页其它相同文字不受影响；改完可直接接着框选别处继续改，多处改动累积在同一份 `_edited` 文件里（原件始终不变）；只支持同一行内连续文字且字号一致（上下标请单独框那个小字），跨行 / 文字层与内容流顺序不一致时明确拒绝且不写文件；旋转页（/Rotate 90/180/270）已支持框选替换——显示坐标与内容流坐标双向变换、在临时去旋转副本上定位后写回原旋转（加密+旋转页因无法安全生成副本明确拒绝）。字符范围：英文、数字、中文（需内嵌字体）、Latin-1 符号（± ° µ × ÷）；≈ ≤ ≥ ∑ ∫ √ π 这类数学符号取决于原 PDF 是否内嵌含该字形的字体，缺字形时拒绝而不写坏。详见 `docs/requirements/PRD.md` §22.13 与 `docs/test-report.md` §23（**真机未验**；布局：左栏 / 右栏 / 底部文件区都可收起（顶栏「工具 / 参数 / 文件」），收起后空间全部给文档画布；左右栏边缘可拖拽调宽、双击复位，宽度会记住。
 
-安装包已重建，SHA-256 `31a432d4…59ac4`）。
+> **2026-11-24 交付**：含 F21 应用内自检的 Windows NSIS 安装包已重建，`PayOnce-PDF-Setup-1.0.0.exe` 30.23 MiB / 31,699,281 B，SHA-256 `bd80c265…fc41048e0`，更新签名 `.sig` 三段验签通过；完整记录见 `docs/test-report.md` §39。
 > **2026-11-16 品牌改名**：产品现名 PayOnce PDF；官网 `https://payoncepdf.com`，联系 `hello@payoncepdf.com`。旧名 / 旧域名 / 旧许可证前缀的完整映射与迁移风险见 `docs/RENAME-MIGRATION.md`；价格四字段集中记录见 `config/product.json`（**冲突已于 22:13 裁决**，`pending_confirmation: false`）。
 
 - 项目根目录：`E:\PayOncePDF`（2026-11-16 由 `<old-repo>` 整体迁入，21:35 完成目录重命名；项目内 Rust 工具链、构建缓存、sidecar 与安装包一并保留）。改名时先停 dev server、移动后在新路径重启 1420 预览服务；历史日志与 cargo 缓存里的旧绝对路径是历史生成物。
 - 技术栈：Tauri 2.12（Rust）+ React 19 + TypeScript；一套代码，Windows 10/11 + macOS 11+（Apple Silicon & Intel）双平台。
 - 需求文档：`docs/requirements/PRD.md`（项目内副本，原始位置 `E:\PainRadar\docs\pdf-launch\PRD.md`）；接口契约：`CONTRACT.md`（命令、错误码、验收映射，所有开发以此为准）。
 - 第二轮实测（对标补齐后）：`npm run build` 61 modules 通过、`cargo check --lib` 0 warning / 0 error、`cargo test --lib -- --test-threads=1` **28 PASS / 0 FAIL**（含 11 项真实 PDF 文件 + PDFium DLL + `qpdf --check` 文件级端到端）、UI 交互冒烟 **20 PASS / 0 FAIL**（15 入口）、验收 smoke **9 PASS / 0 FAIL / 14 SKIP(manual)**。详见 `docs/test-report.md` §13 与 `docs/pdfgear-parity-matrix.md` §2.2。
-- 本机已产出改名后的 **Windows NSIS 安装包 `PayOnce-PDF-Setup-1.0.0.exe`（27.08 MiB / 28,396,590 B，含 F1–F16）+ 更新签名 `.sig`**（开发密钥，已密码学验签），位于 `src-tauri/target/release/bundle/nsis/`；改名复验见 `docs/test-report.md` §15。
+- 当前有效安装包：**`PayOnce-PDF-Setup-1.0.0.exe`（30.23 MiB / 31,699,281 B，含 F1–F21）+ 更新签名 `.sig`**（开发密钥，已密码学验签），位于 `src-tauri/target/release/bundle/nsis/`；SHA-256 `bd80c2658e678242949f286b985833851ee3d52dff7a215069d7e54fc41048e0`，重建与验签见 `docs/test-report.md` §39。历史 27.08 MiB 包（F1–F16）见 §15，旧包已备份在 `tests/out/`，均不得对外分发。
 - **诚实边界**：安装包**没有 EV/Authenticode 签名**、macOS 公证、Gumroad/爱发电 密钥发放、真机双平台端到端测试均未完成；当前产物仅供内部验证，不可对外分发。
 
 ---

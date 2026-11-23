@@ -147,8 +147,8 @@ def check_config() -> None:
               and prod.get("max_devices_per_key") == 3
               and prod.get("pending_confirmation") is False)
         record("P26", "价格四字段与 3 设备授权已按 §22.10 拍板", "PASS" if ok else "FAIL",
-               f"{prod.get('price_usd')}/{prod.get('price_cny')}，"
-               f"早鸟 {prod.get('early_bird_usd')}/{prod.get('early_bird_cny')}，"
+               f"单一标价 {prod.get('price_usd')}/{prod.get('price_cny')}，"
+               f"早鸟字段 {prod.get('early_bird_usd')}/{prod.get('early_bird_cny')} 为历史记录（{prod.get('early_bird_status', '未标注')}），"
                f"设备={prod.get('max_devices_per_key')}，"
                f"pending={prod.get('pending_confirmation')}")
     except Exception as e:  # noqa: BLE001
