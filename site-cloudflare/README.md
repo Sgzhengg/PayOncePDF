@@ -37,7 +37,7 @@
 | `index.html` / `download.html` / `pricing.html` / `help.html` | 中文四页（lang=zh-CN） |
 | `en/index.html` / `en/download.html` / `en/pricing.html` / `en/help.html` | 英文四页（lang=en），镜像文案 |
 | `styles.css` | 8 页共享样式（深色主题、响应式、导航当前页高亮、Gumroad 占位样式） |
-| `serve.py` | 零依赖本地预览服务器，模拟 `_redirects` 的干净路径与 301 跳转 |
+| `../scripts/serve-cloudflare-site.py` | 零依赖本地预览服务器（**在部署目录之外**，模拟 `_redirects` 的干净路径与 301 跳转） |
 | `wrangler.toml` | Cloudflare Pages 项目配置（`pages_build_output_dir = "."`） |
 | `_headers` | 安全响应头（nosniff / SAMEORIGIN / Referrer-Policy / Permissions-Policy），对齐参照站 |
 | `_redirects` | www → 主域 301；`/download` `/pricing` `/help` 及 `/en/` 四页的干净路径 rewrite；旧链接兼容 |
@@ -65,7 +65,7 @@ npx wrangler pages deploy . --project-name payoncepdf --branch main
 3. 构建配置：Framework preset **None**；Build command **留空**；Build output directory **`site-cloudflare`**
 4. 保存后自动部署；以后往 `main` 推 `site-cloudflare/` 改动即自动更新。
 
-> 现有 CI（`.github/workflows/build.yml`）不需改：Pages 走 Cloudflare 的 Git webhook，与桌面安装包构建是两条独立流水线。
+> Cloudflare Pages 走 Git webhook 自动部署，与桌面安装包 CI 是两条独立流水线。**上线前请在 Cloudflare 侧把 `quality` 门禁或人工复核设为部署前置**，见根目录 `DEPLOYMENT.md`。
 
 ## 4. 绑定自定义域名 payoncepdf.com（需你在 Cloudflare 操作）
 
@@ -98,9 +98,11 @@ npx wrangler pages deploy . --project-name payoncepdf --branch main
 
 - `site/`：浅色多页站（首页/定价/FAQ/隐私/验证/EN），信息更全，可作文档型站点保留。
 - `site-cloudflare/`：深色四页转化站，跑在 Cloudflare Pages + `payoncepdf.com`。
-- 两者是独立部署物，**不要**把构建输出指到 `site`。
+- **唯一对外部署物是 `site-cloudflare/`**：`site/` 是历史归档站，已标记禁止部署（见根目录 `DEPLOYMENT.md`）；`dist/` 是浏览器预览版 React 应用，同样禁止部署。
 
 ## 7. 本地预览
+
+> 预览脚本位于 `scripts/serve-cloudflare-site.py`，**不在部署目录内**：Pages 会把 `site-cloudflare/` 下的所有文件当作静态资源发布。
 
 ### 最简单：普通静态服务器（推荐）
 
@@ -116,12 +118,12 @@ python -m http.server 8899 --bind 127.0.0.1
 ### 验证线上干净 URL：带 `_redirects` 的预览服务器
 
 ```bash
-python serve.py 8899
+python ../scripts/serve-cloudflare-site.py 8899
 # 或 npx wrangler pages dev .   （需 wrangler，会读取 _redirects）
 ```
 
-`serve.py` 基于 Python 标准库、零依赖，内置与 `_redirects` 一致的 200 rewrite 与 301 跳转，可验证 `/download`、`/pricing`、`/help`、`/en/…`，以及旧链接 `/index.en.html`、`/zh/` 的行为。
+`../scripts/serve-cloudflare-site.py` 基于 Python 标准库、零依赖，内置与 `_redirects` 一致的 200 rewrite 与 301 跳转，可验证 `/download`、`/pricing`、`/help`、`/en/…`，以及旧链接 `/index.en.html`、`/zh/` 的行为。
 
-> ⚠️ 若浏览器出现 `Error response / Error code: 404 / Message: File not found. / Error code explanation: 404 - Nothing matches the given URI.`，这是 Python `http.server` 的默认 404 页，说明你用普通静态服务器访问了干净路径 `/download`（或点击了旧版页面里的干净链接）。**回到 `http://127.0.0.1:8899/` 根路径刷新后再点导航**，或改用 `python serve.py`。HTML 修改会被静态服务器实时读取，无需重启。
+> ⚠️ 若浏览器出现 `Error response / Error code: 404 / Message: File not found. / Error code explanation: 404 - Nothing matches the given URI.`，这是 Python `http.server` 的默认 404 页，说明你用普通静态服务器访问了干净路径 `/download`（或点击了旧版页面里的干净链接）。**回到 `http://127.0.0.1:8899/` 根路径刷新后再点导航**，或改用 `python ../scripts/serve-cloudflare-site.py`。HTML 修改会被静态服务器实时读取，无需重启。
 
 **内容诚实降级**（与项目已拍板事实一致）：高保真 Word/Excel 互转 → 文字层导出（CONTRACT.md 禁止宣称）；无损压缩 → 压缩且文字层保留；1.x 全版本更新 → 12 个月 1.x；签章 → AcroForm 文本域签名（复选框/图章不支持）；下载试用 → 邮件申请占位；Gumroad → 明确占位不伪造结账页。原则：不编造功能、不伪造链接。

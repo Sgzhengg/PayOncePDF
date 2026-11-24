@@ -1,7 +1,9 @@
 # PayOnce PDF 授权公钥（Ed25519）
 
-`license.rs` 在**首次联网激活**时，需要本目录下的 `public.key` 来验证服务端返回的
-Ed25519 签名。此目录里的文件不会提交到仓库（属于部署密钥材料）。
+`license.rs` 在**首次联网激活**与**离线校验激活缓存**时，用本目录下的 `public.key`
+验证服务端返回的 Ed25519 签名。`public.key` 是**公开**密钥，已入库并随发行包分发；
+**私钥绝不入库、绝不随客户端分发**（开发私钥仅存于 gitignored `scripts/.dev-license-private.key`）。
+2026-11-24 起公钥还有第二重保障：`include_str!` 编译期嵌入二进制，删除外部公钥文件不会改变验签行为。
 
 ## 文件格式
 
@@ -33,8 +35,15 @@ node scripts/gen-license-keys.mjs
 { "payload": "<base64(JSON)>", "signature": "<base64(ed25519 64-byte sig)>" }
 ```
 
-`payload` 的 JSON 建议至少包含 `key` 与 `fingerprint`，后端会据此把令牌绑定到
-本机与密钥（若字段存在则校验）。
+`payload` 的 JSON **必须**包含以下字段（缺任一字段或不一致，Rust 端一律拒绝激活 / 拒绝缓存）：
+
+- `key`：完整 license key（明文），令牌与具体授权码强绑定；
+- `fingerprint`：本机机器指纹哈希；
+- `issuedAt`：ISO-8601 签发时间；
+- `nonce`：一次性随机数（生产服务据此防重放；客户端只校验字段契约）；
+- `expiresAt`：`null` 表示买断永久；给出时间则过期后拒绝。
+
+`keyHash` 可继续保留作服务端索引，但**不能替代** `key` 字段。
 
 ## 运行时查找路径（按优先级）
 
@@ -45,20 +54,21 @@ node scripts/gen-license-keys.mjs
 3. `<resource_dir>/resources/keys/public.key`
 4. 开发态回退：`$CARGO_MANIFEST_DIR/keys/public.key`（`cargo run` 时有效）
 
-> **需主流程协调**：当前 `tauri.conf.json` 的 `bundle.resources = ["resources/*"]`
-> 并未包含 `keys/`，因此打包后的安装包里默认找不到公钥。
-> 请选择其一：
-> - 把生成的 `public.key` 复制到 `src-tauri/resources/`（随 `resources/*` 打包）；或
-> - 在 `tauri.conf.json` 的 `bundle.resources` 增加 `"keys/public.key"`。
->
-> 未随包提供公钥时：`activate_license` 会返回可识别的 E2004 错误，并在本地日志里
-> 提示运行 `scripts/gen-license-keys.mjs`；`get_license_state`、试用与离线使用不受影响，
-> 绝不会 panic。
+`tauri.conf.json` 的 `bundle.resources` 已包含 `"keys/public.key"`，发行包会在
+`<resource_dir>/keys/public.key` 放置一份；`scripts/verify-public-key.py` 校验这份
+资源的 base64 解码为 32 字节，并核对 NSIS 生成清单确实收录了它。
+
+若外部文件缺失或损坏，`read_public_key()` 回退到 `include_str!("../keys/public.key")`
+编译期内嵌的那一份（信任根），因此**公钥永远可用**：`activation.json` 不再含
+`verified` 自证字段，公钥不可用一律拒绝，不存在「删掉公钥即可离线放行」的路径。
+
+> 轮换生产公钥时需同时更新 `keys/public.key` **并重新编译**，否则内嵌的旧公钥仍会
+> 作为回退信任根生效。
 
 ## 安全说明
 
-- 校验失败（签名不合法 / 公钥缺失 / 32 字节长度不符）一律拒绝激活，不写入缓存。
-- 验签通过后才把 `payload`、`signature`、机器指纹缓存到 `app_data_dir/activation.json`，
-  之后完全离线可用。
+- 校验失败（签名不合法 / 32 字节长度不符 / payload 字段缺失或不匹配）一律拒绝激活，不写入缓存。
+- 验签通过 + payload 强字段校验通过后才把 `payload`、`signature`、机器指纹缓存到
+  `app_data_dir/activation.json`，之后完全离线可用；缓存不含任何「已验签」自证布尔值。
 - 全程只发送 `{ key, fingerprint }`，`fingerprint` 为机器信息的 SHA256 哈希，
   不可逆、不含任何文件内容；绝不上传用户文件、不做遥测。

@@ -277,6 +277,21 @@ pub fn run_self_check_blocking(app: &AppHandle) -> serde_json::Value {
         );
     }
     {
+        // P0-1 / P1-1 回归：发行包必须有可用的 Ed25519 信任根，
+        // 不能退化到「信任 activation.json 自证字段」的兜底路径。
+        let t0 = Instant::now();
+        let (ok, source) = license::public_key_diagnostic(app);
+        record(
+            &mut cases,
+            "env.license_public_key",
+            "环境依赖",
+            "F8 激活信任根",
+            false,
+            t0,
+            verdict(ok, format!("公钥可用 · 来源={}", source)),
+        );
+    }
+    {
         // Grabber 的教训：界面版本与引擎版本必须同源，否则报告版本号会骗人。
         let t0 = Instant::now();
         let cargo_version = env!("CARGO_PKG_VERSION");

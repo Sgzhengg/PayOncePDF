@@ -1,11 +1,27 @@
 # Cloudflare Pages 响应头（对齐 zhuazhua.video 的安全头做法）
 # 语法见 https://developers.cloudflare.com/pages/configuration/headers/
+#
+# 2026-11-24：补 CSP / HSTS（上线前 CodeReview P2-5），并给不应被索引的
+# 工程文件加 noindex。本站无内联 JS、无外部 CDN 资源，script-src 'self' 即可；
+# 页面大量使用 style="..." 内联属性，style-src 需保留 'unsafe-inline'。
 
 /*
   X-Content-Type-Options: nosniff
   X-Frame-Options: SAMEORIGIN
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: geolocation=(), microphone=(), camera=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'
   Cache-Control: public, max-age=0, must-revalidate
 
-# 官网是纯静态单页，HTML 走边缘缓存但即时校验；后续若加静态资源可在此追加长缓存规则。
+/styles.css
+  Cache-Control: public, max-age=3600, must-revalidate
+
+/README.md
+  X-Robots-Tag: noindex
+
+/wrangler.toml
+  X-Robots-Tag: noindex
+
+# HTML 走边缘缓存但即时校验；styles.css 单独给 1 小时缓存（文件名无内容哈希，
+# 不宜设过长，否则改样式后 CDN 不能及时更新）。

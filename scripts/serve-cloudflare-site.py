@@ -3,12 +3,16 @@
 
 模拟 Cloudflare Pages 的 `_redirects`，让线上使用的"干净 URL"在本地也能打开：
 
-    python serve.py             # http://127.0.0.1:8000/
-    python serve.py 8899        # 指定端口
+    python scripts/serve-cloudflare-site.py             # http://127.0.0.1:8000/
+    python scripts/serve-cloudflare-site.py 8899        # 指定端口
 
 页面内链接已全部直连 `.html`，因此直接用 `python -m http.server` 也能正常浏览；
 本脚本只是额外补上 /download、/pricing、/help、/en/… 这类无扩展名路径，
 方便部署前完整验证 `_redirects` 的行为，避免本地点导航出现 404。
+
+本脚本放在 `scripts/` 而不是 `site-cloudflare/`：Cloudflare Pages 的
+`pages_build_output_dir = "."` 会把部署目录内所有文件当作静态资源发布，
+本地预览工具与 .pyc 不应出现在公网。
 """
 
 from __future__ import annotations
@@ -19,7 +23,7 @@ import pathlib
 import sys
 import urllib.parse
 
-ROOT = pathlib.Path(__file__).resolve().parent
+ROOT = pathlib.Path(__file__).resolve().parent.parent / "site-cloudflare"
 
 # 与 _redirects 中的 200 rewrite 保持一致
 REWRITES = {

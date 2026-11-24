@@ -1627,3 +1627,75 @@ npx tauri build --bundles nsis && npm run bundle:rename
 - 真窗口内手动点「运行自检」、缴费弹窗时机仍未验；自检 PASS 不能写进真机 CSV 的 PASS（§9.3）。
 - 本轮只重建了 Windows NSIS；macOS dmg / app 未构建、未签名、未公证。
 - 本节与 README / 价格口径同步随后续提交推送；代码主体已在 `48b4022`。
+
+---
+
+## 40. 上线前 CodeReview：纯代码阻断项修复与重新打包（2026-11-24）
+
+### 40.1 基线与范围
+
+输入：`C:/Users/ASUS/OneDrive/Desktop/PayOncePDF-上线前CodeReview报告.md`，基线 `d087c1e`，结论 **NO-GO**（8 项 P0 / 8 项 P1 / 11 项 P2；报告本身明确不评估 EV/Authenticode/Developer ID/公证）。
+
+用户选择的范围是「**先修纯代码阻断项**」：只改仓库内能独立验证的部分；Gumroad 商品与结账链接、真实激活端点、生产 minisign 密钥、真实下载直链、域名 DNS/证书、代码签名与公证一律**不伪造已完成**，仅保留占位与方案。逐条核实后确认报告中三处口径需修正：updater 配置实际在 `plugins.updater` 而非顶层；P0-8 的「任意合规 key 置 active」是 `dist/` 浏览器预览 mock（风险是误部署，不是客户端漏洞）；P0-1 严格说是**发行包缺公钥**，不是数学意义上「手动补文件也 100% 无法激活」。
+
+### 40.2 逐项修复对照
+
+| 报告项 | 修复 | 主要文件 |
+| --- | --- | --- |
+| P0-1 公钥未随包 | `bundle.resources` 加 `keys/public.key`；`include_str!("../keys/public.key")` 编译期内嵌为信任根回退；`read_public_key()` 外部优先、缺失/损坏回退内嵌；新增 `public_key_diagnostic()` 供自检/CI 复用 | `src-tauri/tauri.conf.json`、`src-tauri/src/license.rs`、`src-tauri/keys/README.md` |
+| P1-1 `verified` 自证兜底 | `ActivationFile` 删除 `verified` 字段；`activation_is_valid()` 只认 Ed25519 验签，公钥不可用一律拒绝；旧缓存的 `verified` 被 serde 当未知字段忽略 | `src-tauri/src/license.rs` |
+| P1-2 删 `trial.json` 无限续期 | 新增独立标记 `trial.started`（幂等写入）；`TrialDecision::{Fresh,Valid,Tampered,Expired}` 纯函数判定 `decide_trial()`；记录缺失/损坏且已有标记 → `Expired`，**绝不重建**；补 5 条 Rust 单测锁住边界 | `src-tauri/src/license.rs` |
+| P1-3 payload 未强绑定 | `payload_matches()` 强制 `key` / `fingerprint` / `issuedAt` 必填且与本机/输入一致；`expiresAt` 只允许 `null` 或未过期的 RFC3339；`activate_license()` 验签后再校验契约，失败不写缓存；本地 mock 服务的 payload 同步补齐 `key` / `nonce` | `src-tauri/src/license.rs`、`scripts/license-server.mjs` |
+| P1-5 无 CI 门禁 | 新增 `quality` job（8 步：`npm ci` → `typecheck` → `npm test` → `npm run build` → `python scripts/verify-public-key.py`）；`build` / `verify` 均 `needs: quality`；Windows runner 在供给 sidecar 后、`tauri build` 前跑 `cargo test --lib`（约 20 处测试需 Windows `pdfium.dll`，故不放 ubuntu）；打包后跑「发行包公钥收录复核」 | `.github/workflows/build.yml`、`scripts/verify-public-key.py` |
+| P0-8 / P2-6 部署边界与目录卫生 | 新增 `DEPLOYMENT.md` 明确 `site-cloudflare/` 是**唯一**对外部署物、`site/` 与 `dist/` 禁止部署；`site/README.md` 加历史归档警告；`serve.py` 移出部署目录到 `scripts/serve-cloudflare-site.py`；删除 `__pycache__`；`_headers` 补 CSP / HSTS / noindex / `styles.css` 短缓存 | `DEPLOYMENT.md`、`site-cloudflare/`、`site/README.md`、`scripts/serve-cloudflare-site.py` |
+| P0-5 / P1-7 用户可见内部备注与价格残留 | `updateError()` 改为用户可执行动作（去掉内部工程备注）；官网中英 8 页把「商品尚未创建 / 替换 href」改为「支付通道正在准备中」，**保留** Gumroad 占位按钮与 `aria-disabled="true"`，不伪造 `gumroad.com/l/` 假直链；`config/product.json` 的 `_in_sync` 移除仓库外无法核验的 `E:/PainRadar/*` 路径；旧站与 PRD、历史 landing/copy/preorder 统一 `$39 / ¥199` 单一标价并把早鸟标为历史/已取消 | `src/lib/backend.ts`、`site-cloudflare/*.html`、`config/product.json`、`site/*.html`、`docs/requirements/*` |
+| 契约测试同步 | `rename-contract.test.mjs` 的 `_in_sync` 从「长度 ≥ 15」改为**更强**的断言：≥ 8 个仓库内文件、无绝对路径、每个文件真实存在，并新增 `early_bird_status === cancelled_2026-11-24` 与事实源一致性检查 | `tests/rename-contract.test.mjs` |
+
+`scripts/verify-public-key.py` 为新增的 CI/本地断言：公钥 base64 解码为 32 字节、`bundle.resources` 含公钥、`license.rs` 有 `include_str!` 且无 `act.verified` / `verified: bool`、NSIS 清单确实收录 `keys/public.key`。
+
+### 40.3 全量验证结果
+
+| 检查 | 命令 / 方法 | 结果 |
+| --- | --- | --- |
+| TypeScript strict | `npm run typecheck` | **PASS**（0 error） |
+| 前端单测 | `npm test` | **59 PASS / 0 FAIL**（含新契约断言） |
+| 前端构建 | `npm run build` | **PASS**，69 modules / 1.23 s，`dist/` 产物生成 |
+| Rust 库单测 | `cargo test --lib` | **105 PASS / 0 FAIL**（1.53 s；含 `trial_decision_tests` 5 条、`payload_contract_tests` 5 条） |
+| 公钥断言（打包前） | `python scripts/verify-public-key.py` | 前 4 项 PASS，NSIS 项 **FAIL**（旧 `installer.nsi` 未含公钥，属预期） |
+| 公钥断言（打包后） | 同上 | **5/5 PASS**，`installer.nsi` 命中 `keys/public.key` |
+| CI 配置解析 | PyYAML 解析 `build.yml` | **PASS**：jobs = `quality / build / universal / verify`；`build.needs=quality`、`verify.needs=quality`；quality 8 步齐全 |
+| 官网 8 页 | 自建结构校验（链接可达性、标签配平、干净路径残留、`_headers`、假 Gumroad 直链） | **PASS**：8 页共 180 条链接全部有效、标签配平、无干净路径残留；CSP/HSTS 齐；假直链 0；占位按钮 2 处（中英价格页各 1） |
+| 更新签名 | `python tests/verify-updater-signature.py` | **三段验签全 OK**：key id `654e340d1fe4b8e5` 匹配、ED/BLAKE2b-512 prehashed、篡改 1 bit 负向自检通过 |
+
+### 40.4 重新打包与交付物
+
+命令与 §39 相同（项目内隔离工具链 + 开发 minisign 密钥），日志 `tests/out/build-codereview.log`：`BUILD_EXIT=0` / `RENAME_EXIT=0`，全程 2m52s（release 编译 1m59s，makensis 1 个 bundle）。旧包与 `.sig` 备份到 `tests/out/*.PRE-CODEREVIEW.*`。
+
+| 项 | 值 |
+| --- | --- |
+| 安装包 | `src-tauri/target/release/bundle/nsis/PayOnce-PDF-Setup-1.0.0.exe` |
+| 大小 | **31,700,283 B（30.23 MiB）** |
+| SHA-256 | **`f1276027e5baa4733b1ed2acae651511cbabf96e6db0922c37f96d721ae83f03`** |
+| 更新签名 | 同目录 `.exe.sig`，440 B，三段密码学验签通过 |
+| 旧包对照 | 31,699,281 B / `bd80c265…fc41048e0`（§39），字节已变化；README 与真机计划的哈希口径已同步更新 |
+
+### 40.5 公钥随包的实证（P0-1）
+
+- `src-tauri/target/release/nsis/x64/installer.nsi` 共 **66 条 `File /a`**，第 689 行 `File /a "/oname=keys\public.key" ...`、第 873 行卸载时 `Delete "$INSTDIR\keys\public.key"`。
+- 对**未压缩的** `src-tauri/target/release/payoncepdf.exe`（7,291,904 B）做字节回读：`run_self_check` / `payonce.selftest` / `PAYONCEPDF_SELFCHECK` / `needs_real_device` / `env.license_public_key`（本轮新增）/ `trial.started` 全部 **HIT**；`include_str!` 嵌入的公钥 base64 原文 `YQxKlFzOQKi79/VAkydRB6vRfj7m9vUuaed+PTARDgk=` 也 **HIT**。`payload_matches` / `keys/public.key` / `EMBEDDED_PUBLIC_KEY_B64` 为 **MISS**，是 release 优化内联与常量裁剪所致，**不代表修复缺失**（§39.3 已有同类记录）。
+- **负向实证**：临时移走 release 资源目录的 `keys/public.key`（同时 `env -u CARGO_MANIFEST_DIR` 排除开发态回退）后重跑自检 → `env.license_public_key.ok=true`、`detail=公钥可用 · 来源=embedded in binary`、仍 32/32；随后恢复公钥，现场已还原。报告分别留档 `tests/out/selfcheck-real-window-embedded-fallback.json` 与 `tests/out/selfcheck-real-window.json`。这证明「删掉外部公钥文件」不再造成授权失败或退回自证兜底。
+
+### 40.6 release 版自检（F21）
+
+`PAYONCE_EXE=E:/PayOncePDF/src-tauri/target/release/payoncepdf.exe node tests/selfcheck-real-window.mjs` → schema `payonce.selftest/1`、`summary = {total:32, passed:32, failed:0, skipped:0}`、`elapsed_ms=4494`、coverage **28 功能 / 12 真机项**（新增 `env.license_public_key` 后由 §39 的 31 条变为 32 条）。`ocr.optional_engine` 真跑通过（2,154 ms，输出文件已生成）。CDP 前端面板验证仍跳过（本机 WebView2 未开放调试端口），与 §38.4 一致。
+
+> 脚本需传**绝对路径**：相对路径在 Windows `spawn` 下会 `ENOENT`。
+
+### 40.7 诚实边界（仍未解决，不得据此宣称可上线）
+
+- 报告结论仍是 **NO-GO 的剩余部分**：`plugins.updater` 端点仍为占位 `https://payoncepdf.com/api/update/...`、`DEFAULT_ACTIVATE_URL` 仍为未部署的 `https://payoncepdf.com/api/activate`、Gumroad 仍为 `href="#gumroad-pending"` + `aria-disabled="true"`、官网下载页无真实直链与哈希、隐私政策/服务条款未做独立页。
+- 安装态未真机验证；CDP 面板、真窗口手动点「运行自检」、试用到期弹窗时机、抓包验证、macOS 双架构/Universal dmg 均未执行。
+- 安装包**仍无 EV/Authenticode 签名**，minisign 为开发密钥；Windows SmartScreen 会警告，当前包仅限内部验证。
+- **本地试用防重置不是密码学防线**：`trial.json` 与 `trial.started` 若被同时删除，纯本地方案仍会重新给 7 天；彻底解决依赖服务端激活记录（每台设备/每把 key 的签发与上限 3 台）。本轮只消除了「误删/随手删一个文件即可无限续期」这一最廉价路径。
+- **Cloudflare Git 集成是独立 webhook，不受 GitHub Actions 质量门禁约束**；上线前必须关闭「推 main 即自动部署」或改为门禁通过后触发，详见 `DEPLOYMENT.md`。
+- 本轮只重建 Windows NSIS；未构建、未签名、未公证 macOS 产物。

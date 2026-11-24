@@ -1,7 +1,7 @@
 # 落地页文案板（可直接复用）
 
 > 品牌与域名：**PayOnce PDF**（一次付费 PDF）· https://payoncepdf.com · hello@payoncepdf.com。
-> 价格数值以 `config/product.json` 的四个字段为集中记录；本文件已与 `$39 / ¥199` 口径同步，价格冲突已于 2026-11-16 22:13 裁决。
+> 价格数值以 `config/product.json` 的 `price_usd` / `price_cny` / `early_bird_status` 为集中记录；**2026-11-24 起取消早鸟，统一 `$39 / ¥199` 单一标价**，本文件现行文案已同步。
 > 定位依据：`docs/positioning-v2.md`（2026-11-20 修正版）。数据统一采用 **300 样本 / 81 条有效痛点**的新语料；旧 723 评论 / 333 痛点原子的「37%」只作历史引文，**不对外与新数字并列**。
 
 > **主用途（2026-11-20 拍板，依据 `docs/primary-use-case-decision.md`）**：桌面离线、一次买断的 **PDF 就地修订**。阅读批注是形态层（不收费）、格式转换与 OCR 是辅助层（不主打）、深度排版与云端能力明确不做。主标题不变，但首屏必须把这条主线讲清楚。
@@ -114,7 +114,7 @@
 
 ## 9. 合规措辞
 
-- `Deposit is refundable; final price $39 / ¥199; launch price $29 / ¥149 for 14 days; 1.x updates for 12 months.`
+- `Deposit is refundable; single price $39 / ¥199 with no launch discount; 1.x updates for 12 months.`
 - `If we do not ship within 90 days, your deposit is refunded automatically.`
 - **License never expires ≠ lifetime updates**：授权永久有效，免费更新只含 12 个月 1.x，2.x 为老用户五折的单独购买。
 - 离线表述必须带三类请求限定，不写「完全离线 / 零云调用 / 零网络请求」。

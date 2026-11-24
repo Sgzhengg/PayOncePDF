@@ -394,8 +394,8 @@ function rememberCheck(): void {
 function updateError(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e);
   return msg.includes("public key") || msg.includes("pubkey") || msg.includes("signature")
-    ? "更新签名公钥尚未配置（发布前需替换 tauri.conf.json 的占位 pubkey）"
-    : `检查更新失败：${msg}`;
+    ? "暂时无法验证更新包，请稍后重试；若持续出现请联系 hello@payoncepdf.com"
+    : `暂时无法检查更新，请稍后重试（${msg}）`;
 }
 
 export async function checkUpdate(): Promise<UpdateCheckResult> {

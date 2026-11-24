@@ -37,7 +37,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": ["resources/*", "resources/tessdata/*"],
+    "resources": ["resources/*", "resources/tessdata/*", "keys/public.key"],
     "externalBin": ["bin/qpdf", "bin/tesseract"],
     "createUpdaterArtifacts": true,
     "category": "Productivity",

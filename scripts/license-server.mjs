@@ -18,9 +18,11 @@
  * 响应
  *   200 { "payload": "<base64(JSON)>", "signature": "<base64(Ed25519 签名)>" }
  *   payload = base64(UTF-8(JSON))，JSON 字段：
- *     keyHash     : sha256(hex) of the license key（"payload 密钥哈希"，不存明文密钥）
- *     fingerprint : 请求中的机器指纹哈希
- *     issuedAt    : ISO-8601 签发时间
+ *     key         : 完整 license key（明文；Rust 端强制校验与缓存 key 一致）
+ *     keyHash     : sha256(hex) of the license key（服务端索引，不替代 key）
+ *     fingerprint : 请求中的机器指纹哈希（Rust 端强制校验）
+ *     issuedAt    : ISO-8601 签发时间（必填）
+ *     nonce       : 一次性随机数（生产服务据此防重放）
  *     expiresAt   : null（买断，永不过期；试用过期由 Rust 端本地 7 天逻辑控制）
  *   signature = base64(Ed25519 sign(payloadBytes, privateKey))
  *   校验方式（Rust 端）：base64 解码 payload 得到 payloadBytes，用 public.key 的
@@ -34,9 +36,10 @@
  *   本服务是**本地 mock**，只做格式校验、不查购买记录、不防重放、不维护吊销列表。
  *   上线必须替换为 Gumroad / 爱发电 的真实校验服务（校验订单、绑定机器指纹、
  *   防重放 nonce、吊销与退款同步），私钥不得随客户端分发。
- *   Rust 端通过环境变量 PAYONCEPDF_ACTIVATE_URL 覆盖激活地址：
- *     开发/联调默认指向本 mock (http://127.0.0.1:8787/api/activate)；
- *     生产指向 Gumroad / 爱发电 的真实校验端点。
+ *   Rust 端 `DEFAULT_ACTIVATE_URL` 固定为 https://payoncepdf.com/api/activate
+ *   （该端点尚未部署）。**本地联调必须显式设置**环境变量：
+ *     PAYONCEPDF_ACTIVATE_URL=http://127.0.0.1:8787/api/activate
+ *   未设置时普通用户会连到尚未上线的生产地址；本 mock 不是任何环境的默认目标。
  *
  * 工程红线
  *   - 仅监听 127.0.0.1（不暴露到网络）；不硬编码任何凭据；不生成 emoji。
@@ -126,11 +129,14 @@ function activate(payloadObj) {
   }
   used.add(fingerprint);
   deviceLedger.set(key, used);
-  // payload 字段顺序固定，便于验证端稳定解析
+  // 字段契约见 src-tauri/keys/README.md：key / fingerprint / issuedAt / nonce 必填，
+  // 缺任一字段 Rust 端会拒绝激活，避免旧 mock 令牌被缓存成「看起来已激活」。
   const payload = {
+    key,
     keyHash: crypto.createHash('sha256').update(key, 'utf8').digest('hex'),
     fingerprint,
     issuedAt: new Date().toISOString(),
+    nonce: crypto.randomUUID(),
     expiresAt: null,
   };
   const payloadBytes = Buffer.from(JSON.stringify(payload), 'utf8');

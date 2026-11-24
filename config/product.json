@@ -64,22 +64,21 @@
   ],
   "_in_sync": [
     "docs/requirements/PRD.md",
-    "docs/requirements/landing.html",
-    "docs/requirements/landing.zh.html",
-    "docs/requirements/copy.md",
     "docs/requirements/preorder.md",
     "site/pricing.html",
-    "site/index.html",
-    "site/index.zh.html",
     "site/faq.html",
     "site/README.md",
     "README.md",
-    "E:/PainRadar/docs/pdf-launch/PRD.md",
-    "E:/PainRadar/docs/pdf-launch/landing.html",
-    "E:/PainRadar/docs/pdf-launch/landing.zh.html",
-    "E:/PainRadar/docs/pdf-launch/copy.md",
-    "E:/PainRadar/docs/pdf-launch/posts.md",
-    "E:/PainRadar/docs/pdf-launch/preorder.md"
+    "site-cloudflare/index.html",
+    "site-cloudflare/en/index.html",
+    "site-cloudflare/pricing.html",
+    "site-cloudflare/en/pricing.html"
   ],
+  "_sync_status_2026_11_24": {
+    "decision": "取消首发 14 天早鸟，统一 $39 / ¥199 单一标价；不设折扣码、不设划线原价。",
+    "synced": "上列文件的现行价格表述已同步；docs/requirements/ 与 site/ 的历史论证正文按原文保留并标注历史，不再作为现行价格事实源。",
+    "external_paths_removed": "E:/PainRadar/docs/pdf-launch/* 不在本仓库内，无法核验同步状态，已从 _in_sync 移除，不再声称已同步。",
+    "canonical_source": "config/product.json（price_usd=39 / price_cny=199 / early_bird_status=cancelled_2026-11-24）；唯一对外部署物为 site-cloudflare/，见 DEPLOYMENT.md。"
+  },
   "pending_confirmation": false
 }

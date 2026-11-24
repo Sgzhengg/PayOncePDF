@@ -98,7 +98,19 @@ test('价格冲突已裁决：config/product.json 为单一来源', () => {
   assert.equal(c.pending_confirmation, false, '价格冲突已裁决且新定价已由用户授权拍板');
   assert.ok(c.pricing_v2 && c.pricing_v2.reference.updf_perpetual_cny === 238);
   assert.ok(c.previous_resolution && c.previous_resolution.changed_files.length === 5);
-  assert.ok(c._in_sync.length >= 15);
+  // 2026-11-24：_in_sync 收敛为「仓库内可核验」的现行价格文件；
+  // E:/PainRadar/docs/pdf-launch/* 在本仓库外，已移除，不再冒充已同步。
+  assert.ok(c._in_sync.length >= 8, '_in_sync 至少覆盖 8 个仓库内现行价格文件');
+  for (const f of c._in_sync) {
+    assert.ok(!/^[A-Za-z]:[\\/]/.test(f), `${f} 不能是仓库外的绝对路径`);
+    assert.ok(fs.existsSync(path.join(ROOT, f)), `${f} 必须真实存在`);
+  }
+  assert.equal(c.early_bird_status, 'cancelled_2026-11-24', '早鸟已取消，字段仅作历史记录');
+  assert.match(
+    c._sync_status_2026_11_24.canonical_source,
+    /cancelled_2026-11-24/,
+    '事实源必须写明早鸟已取消',
+  );
 });
 
 test('参考资料正式价已与 config/product.json 一致（仅在该目录存在时检查）', () => {

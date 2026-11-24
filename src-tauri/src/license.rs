@@ -25,17 +25,25 @@ const TRIAL_DAYS_MS: i64 = 7 * 24 * 60 * 60 * 1000;
 const DAY_MS: i64 = 24 * 60 * 60 * 1000;
 const TRIAL_SALT: &[u8] = b"PayOnce PDF/trial/v1";
 const TRIAL_FILE: &str = "trial.json";
+/// 独立的「本机已启用过试用」标记。删掉 / 写坏 trial.json 也不能重新领 7 天。
+const TRIAL_MARKER_FILE: &str = "trial.started";
+const TRIAL_MARKER_CONTENT: &[u8] = b"PayOnce PDF trial enabled on this machine\n";
 const ACTIVATION_FILE: &str = "activation.json";
+/// 编译期内嵌的 Ed25519 公钥（base64 编码的原始 32 字节）。
+/// 随二进制分发，删掉外部公钥文件也不会让授权退回「信任本地标记」的兜底路径。
+const EMBEDDED_PUBLIC_KEY_B64: &str = include_str!("../keys/public.key");
 const ACTIVATE_URL_ENV: &str = "PAYONCEPDF_ACTIVATE_URL";
 const DEFAULT_ACTIVATE_URL: &str = "https://payoncepdf.com/api/activate";
 const ACTIVATE_TIMEOUT: Duration = Duration::from_secs(12);
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 struct TrialFile {
     started_at: i64,
     digest: String,
 }
 
+/// 离线激活缓存。**不含任何自证字段**：是否有效一律由 Ed25519 签名判定。
+/// 旧版缓存里的 `verified` 会被 serde 当作未知字段忽略。
 #[derive(Serialize, Deserialize)]
 struct ActivationFile {
     key: String,
@@ -43,8 +51,6 @@ struct ActivationFile {
     signature: String,
     fingerprint: String,
     activated_at: i64,
-    /// 只在验签通过后写入 true。公钥临时缺失时作为"此前已验签"的离线兜底依据。
-    verified: bool,
 }
 
 /// 服务器响应：payload 是 base64(JSON)，signature 是 base64(ed25519 签名，签名对象为 payload 的原始字节)。
@@ -105,41 +111,83 @@ fn key_hint(key: &str) -> String {
     format!("****{}", tail)
 }
 
-/// 读取 trial.json；不存在或无法解析时创建一份全新的（首次启动）。
-/// 文件存在但摘要不匹配 → 视为被篡改，返回一个"早已过期"的起点（保守拒绝导出），
-/// 同时写一条本机日志提示；**不删除、不改写用户文件**。
+/// trial.json 的判定结果。抽成纯函数便于单测锁住「删文件不能续期」这条边界。
+#[derive(Debug, PartialEq)]
+enum TrialDecision {
+    /// 真正首次启动（无记录、无启用标记）：允许创建 7 天试用。
+    Fresh,
+    Valid(TrialFile),
+    /// 记录存在但摘要不匹配：保留内容，按过期处理，不改写文件。
+    Tampered(TrialFile),
+    /// 已启用过试用，但记录缺失 / 读取失败 / JSON 损坏：一律过期，绝不重建。
+    Expired,
+}
+
+fn decide_trial(raw: Option<&str>, marker_existed: bool, fp: &str) -> TrialDecision {
+    match raw {
+        Some(text) => match serde_json::from_str::<TrialFile>(text) {
+            Ok(t) if t.digest == trial_digest(t.started_at, fp) => TrialDecision::Valid(t),
+            Ok(t) => TrialDecision::Tampered(t),
+            Err(_) => TrialDecision::Expired,
+        },
+        None if marker_existed => TrialDecision::Expired,
+        None => TrialDecision::Fresh,
+    }
+}
+
+/// 读取 trial.json；不存在 / 无法解析且本机已有启用标记时按**过期**处理，不再重建。
+/// 文件存在但摘要不匹配 → 同样保守拒绝导出。两种情况都**不删除、不改写用户文件**。
 fn load_or_create_trial(app: &AppHandle) -> AppResult<(TrialFile, bool)> {
     let dir = app_data_dir(app)?;
     std::fs::create_dir_all(&dir).map_err(AppError::from)?;
     let path = dir.join(TRIAL_FILE);
+    let marker = dir.join(TRIAL_MARKER_FILE);
     let fp = fingerprint();
 
-    if path.exists() {
-        if let Ok(text) = std::fs::read_to_string(&path) {
-            if let Ok(trial) = serde_json::from_str::<TrialFile>(&text) {
-                let good = trial.digest == trial_digest(trial.started_at, &fp);
-                if !good {
-                    crate::logging::record_hint(
-                        "trial",
-                        "E2004",
-                        "trial.json 摘要不匹配（疑似被篡改），按过期处理",
-                    );
-                }
-                return Ok((trial, good));
-            }
-        }
-        // 解析失败：落到下面重建。
+    // 标记幂等写入：老用户升级时（已有 trial.json、无标记）补写一次，
+    // 之后删 trial.json 就会命中 Expired 分支。
+    let marker_existed = marker.is_file();
+    if !marker_existed {
+        let _ = std::fs::write(&marker, TRIAL_MARKER_CONTENT);
     }
 
-    let started_at = now_ms();
-    let trial = TrialFile {
-        started_at,
-        digest: trial_digest(started_at, &fp),
-    };
-    if let Ok(json) = serde_json::to_string_pretty(&trial) {
-        let _ = std::fs::write(&path, json);
+    let raw = std::fs::read_to_string(&path).ok();
+    match decide_trial(raw.as_deref(), marker_existed, &fp) {
+        TrialDecision::Fresh => {
+            let started_at = now_ms();
+            let trial = TrialFile {
+                started_at,
+                digest: trial_digest(started_at, &fp),
+            };
+            if let Ok(json) = serde_json::to_string_pretty(&trial) {
+                let _ = std::fs::write(&path, json);
+            }
+            Ok((trial, true))
+        }
+        TrialDecision::Valid(t) => Ok((t, true)),
+        TrialDecision::Tampered(t) => {
+            crate::logging::record_hint(
+                "trial",
+                "E2004",
+                "trial.json 摘要不匹配（疑似被篡改），按过期处理",
+            );
+            Ok((t, false))
+        }
+        TrialDecision::Expired => {
+            crate::logging::record_hint(
+                "trial",
+                "E2005",
+                "trial.json 缺失或损坏，但本机已有试用启用标记，按过期处理（不重建）",
+            );
+            Ok((
+                TrialFile {
+                    started_at: 0,
+                    digest: String::new(),
+                },
+                false,
+            ))
+        }
     }
-    Ok((trial, true))
 }
 
 fn load_activation(app: &AppHandle) -> Option<ActivationFile> {
@@ -163,28 +211,47 @@ fn candidate_key_paths(app: &AppHandle) -> Vec<PathBuf> {
     v
 }
 
-fn locate_public_key(app: &AppHandle) -> AppResult<PathBuf> {
-    for p in candidate_key_paths(app) {
-        if p.is_file() {
-            return Ok(p);
-        }
-    }
-    let msg = "缺少 Ed25519 公钥 keys/public.key，无法完成激活；请运行 scripts/gen-license-keys.mjs 并把公钥随包发布";
-    crate::logging::record_hint("activate", "E2004", msg);
-    Err(AppError::internal(msg))
-}
-
-fn read_public_key(app: &AppHandle) -> AppResult<[u8; 32]> {
-    let path = locate_public_key(app)?;
-    let text = std::fs::read_to_string(&path).map_err(AppError::from)?;
+fn decode_public_key(text: &str) -> AppResult<[u8; 32]> {
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(text.trim())
-        .map_err(|e| AppError::internal(format!("keys/public.key 不是合法 base64：{}", e)))?;
-    let arr: [u8; 32] = bytes
+        .map_err(|e| AppError::internal(format!("Ed25519 公钥不是合法 base64：{}", e)))?;
+    bytes
         .as_slice()
         .try_into()
-        .map_err(|_| AppError::internal("Ed25519 公钥必须是原始 32 字节"))?;
-    Ok(arr)
+        .map_err(|_| AppError::internal("Ed25519 公钥必须是原始 32 字节"))
+}
+
+/// 外部文件优先（便于运维轮换）；缺失 / 损坏时回退到编译期内嵌公钥。
+/// 因此发行包永远有可用信任根：删掉 keys/public.key 不会改变验签行为。
+fn read_public_key(app: &AppHandle) -> AppResult<[u8; 32]> {
+    for p in candidate_key_paths(app) {
+        if !p.is_file() {
+            continue;
+        }
+        if let Ok(text) = std::fs::read_to_string(&p) {
+            if let Ok(key) = decode_public_key(&text) {
+                return Ok(key);
+            }
+        }
+    }
+    decode_public_key(EMBEDDED_PUBLIC_KEY_B64)
+}
+
+/// 供 F21 自检 / CI 断言复用：返回 (是否可用, 来源说明)。
+pub fn public_key_diagnostic(app: &AppHandle) -> (bool, String) {
+    for p in candidate_key_paths(app) {
+        if p.is_file() {
+            if let Ok(text) = std::fs::read_to_string(&p) {
+                if decode_public_key(&text).is_ok() {
+                    return (true, format!("external: {}", p.display()));
+                }
+            }
+        }
+    }
+    match decode_public_key(EMBEDDED_PUBLIC_KEY_B64) {
+        Ok(_) => (true, "embedded in binary".to_string()),
+        Err(e) => (false, format!("内嵌公钥无效：{}", e)),
+    }
 }
 
 /// 用公钥验签一组 (payload 原始字节, signature)。
@@ -203,6 +270,46 @@ fn verify_signature(app: &AppHandle, payload: &[u8], signature_b64: &str) -> App
     Ok(())
 }
 
+/// 激活令牌的必填契约：payload 必须绑定具体 license key、本机指纹与签发时间。
+/// 缺任一字段或不一致 → 拒绝（不再接受「字段存在才校验」的宽松行为）。
+fn payload_matches(payload: &[u8], key: &str, fp: &str) -> bool {
+    let v: serde_json::Value = match serde_json::from_slice(payload) {
+        Ok(v) => v,
+        Err(_) => return false,
+    };
+    let k = match v.get("key").and_then(|x| x.as_str()) {
+        Some(k) => k,
+        None => return false,
+    };
+    let pf = match v.get("fingerprint").and_then(|x| x.as_str()) {
+        Some(p) => p,
+        None => return false,
+    };
+    let issued = match v.get("issuedAt").and_then(|x| x.as_str()) {
+        Some(i) => i,
+        None => return false,
+    };
+    // issuedAt 只校验存在与非空，不按本机时钟判定（避免时钟漂移误锁已付费用户）。
+    if k != key || pf != fp || issued.is_empty() {
+        return false;
+    }
+    // expiresAt 为 null 表示买断永久；若给出时间且已过期则拒绝。
+    if let Some(exp) = v.get("expiresAt") {
+        if !exp.is_null() {
+            let s = match exp.as_str() {
+                Some(s) => s,
+                None => return false,
+            };
+            match chrono::DateTime::parse_from_rfc3339(s) {
+                Ok(dt) if dt.timestamp_millis() < now_ms() => return false,
+                Ok(_) => {}
+                Err(_) => return false,
+            }
+        }
+    }
+    true
+}
+
 /// 校验缓存的激活是否仍然有效（离线可判定，不发网络请求）。
 fn activation_is_valid(app: &AppHandle, act: &ActivationFile) -> bool {
     // 1) 必须绑定当前机器。
@@ -214,32 +321,12 @@ fn activation_is_valid(app: &AppHandle, act: &ActivationFile) -> bool {
         Ok(b) => b,
         Err(_) => return false,
     };
-    // 3) 若 payload 内声明了 key/fingerprint，则必须匹配（防止令牌被换机/换钥使用）。
-    if let Ok(v) = serde_json::from_slice::<serde_json::Value>(&payload_bytes) {
-        if let Some(fp) = v.get("fingerprint").and_then(|x| x.as_str()) {
-            if fp != act.fingerprint {
-                return false;
-            }
-        }
-        if let Some(k) = v.get("key").and_then(|x| x.as_str()) {
-            if k != act.key {
-                return false;
-            }
-        }
+    // 3) payload 必须完整绑定 key / 指纹 / 签发时间。
+    if !payload_matches(&payload_bytes, &act.key, &act.fingerprint) {
+        return false;
     }
-    // 4) 公钥可用时做完整验签；公钥临时缺失时，信任"激活时已验签"的标记，
-    //    避免已付费用户在缺组件的机器上被锁死（离线可用优先）。
-    match read_public_key(app) {
-        Ok(_) => verify_signature(app, &payload_bytes, &act.signature).is_ok(),
-        Err(_) => {
-            crate::logging::record_hint(
-                "license",
-                "E2004",
-                "公钥缺失，按 activation.json 的 verified 标记离线放行；请运行 scripts/gen-license-keys.mjs",
-            );
-            act.verified
-        }
-    }
+    // 4) 只认签名。公钥不可用一律拒绝，绝不使用缓存里的「已验签」自证字段。
+    verify_signature(app, &payload_bytes, &act.signature).is_ok()
 }
 
 /// 计算并返回当前授权状态。纯本地、不发网络请求，断网时仍可用。
@@ -346,12 +433,8 @@ pub fn activate_license(app: &AppHandle, key: &str) -> AppResult<LicenseState> {
         ));
     }
 
-    // 公钥缺失时立即给出可识别错误（不发起无意义的网络请求）。
-    read_public_key(app).map_err(|_| {
-        let msg = "缺少 Ed25519 公钥 keys/public.key，无法完成激活；请运行 scripts/gen-license-keys.mjs";
-        crate::logging::record_hint("activate", "E2004", msg);
-        AppError::internal(msg)
-    })?;
+    // 公钥必须可用（随包资源或编译期内嵌），否则立即拒绝，不发无意义的网络请求。
+    read_public_key(app)?;
 
     let fp = fingerprint();
     let url = std::env::var(ACTIVATE_URL_ENV)
@@ -378,6 +461,12 @@ pub fn activate_license(app: &AppHandle, key: &str) -> AppResult<LicenseState> {
         .decode(parsed.payload.trim())
         .map_err(|e| AppError::internal(format!("激活 payload 不是合法 base64：{}", e)))?;
     verify_signature(app, &payload_bytes, &parsed.signature)?;
+    // 验签通过后仍要强校验字段契约：防止服务端漏字段的令牌被缓存成「看起来已激活」。
+    if !payload_matches(&payload_bytes, &key, &fp) {
+        return Err(AppError::internal(
+            "激活令牌字段不完整或与当前密钥 / 设备不匹配，请联系支持",
+        ));
+    }
 
     let act = ActivationFile {
         key: key.clone(),
@@ -385,7 +474,6 @@ pub fn activate_license(app: &AppHandle, key: &str) -> AppResult<LicenseState> {
         signature: parsed.signature,
         fingerprint: fp,
         activated_at: now_ms(),
-        verified: true,
     };
     let dir = app_data_dir(app)?;
     std::fs::create_dir_all(&dir).map_err(AppError::from)?;
@@ -397,4 +485,121 @@ pub fn activate_license(app: &AppHandle, key: &str) -> AppResult<LicenseState> {
 
     crate::logging::record("activate", "OK");
     get_license_state(app)
+}
+
+#[cfg(test)]
+mod trial_decision_tests {
+    use super::{decide_trial, trial_digest, TrialDecision, TrialFile};
+
+    const FP: &str = "unit-test-fingerprint";
+    const START: i64 = 1_700_000_000_000;
+
+    fn valid_json() -> String {
+        serde_json::to_string(&TrialFile {
+            started_at: START,
+            digest: trial_digest(START, FP),
+        })
+        .unwrap()
+    }
+
+    #[test]
+    fn first_launch_without_marker_is_fresh() {
+        assert_eq!(decide_trial(None, false, FP), TrialDecision::Fresh);
+    }
+
+    /// P1-2 回归锁：删掉 trial.json 不能重新领 7 天。
+    #[test]
+    fn deleted_trial_with_marker_is_expired_not_reset() {
+        assert_eq!(decide_trial(None, true, FP), TrialDecision::Expired);
+    }
+
+    #[test]
+    fn corrupted_json_is_expired_not_reset() {
+        assert_eq!(
+            decide_trial(Some("{not json"), true, FP),
+            TrialDecision::Expired
+        );
+        assert_eq!(decide_trial(Some(""), false, FP), TrialDecision::Expired);
+    }
+
+    #[test]
+    fn valid_trial_is_accepted() {
+        match decide_trial(Some(&valid_json()), true, FP) {
+            TrialDecision::Valid(t) => assert_eq!(t.started_at, START),
+            other => panic!("expected Valid, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn tampered_digest_and_other_machine_are_not_fresh() {
+        let mut t: TrialFile = serde_json::from_str(&valid_json()).unwrap();
+        t.digest = "deadbeef".to_string();
+        let json = serde_json::to_string(&t).unwrap();
+        assert!(matches!(
+            decide_trial(Some(&json), true, FP),
+            TrialDecision::Tampered(_)
+        ));
+        assert!(matches!(
+            decide_trial(Some(&valid_json()), true, "other-machine"),
+            TrialDecision::Tampered(_)
+        ));
+    }
+}
+
+#[cfg(test)]
+mod payload_contract_tests {
+    use super::payload_matches;
+
+    const KEY: &str = "PAYONCE-ABCD-EFGH-IJKL";
+    const FP: &str = "fp-123";
+
+    fn full() -> serde_json::Value {
+        serde_json::json!({
+            "key": KEY,
+            "fingerprint": FP,
+            "issuedAt": "2026-11-24T00:00:00Z",
+            "expiresAt": null,
+            "nonce": "abc123"
+        })
+    }
+    fn bytes(v: &serde_json::Value) -> Vec<u8> {
+        serde_json::to_vec(v).unwrap()
+    }
+
+    #[test]
+    fn accepts_full_payload() {
+        assert!(payload_matches(&bytes(&full()), KEY, FP));
+    }
+
+    /// P1-3 回归锁：旧 mock 那种只有 keyHash 的 payload 必须被拒。
+    #[test]
+    fn rejects_legacy_payload_without_key() {
+        let mut v = full();
+        v.as_object_mut().unwrap().remove("key");
+        assert!(!payload_matches(&bytes(&v), KEY, FP));
+    }
+
+    #[test]
+    fn rejects_missing_fingerprint_or_issued_at() {
+        let mut v = full();
+        v.as_object_mut().unwrap().remove("fingerprint");
+        assert!(!payload_matches(&bytes(&v), KEY, FP));
+        let mut v = full();
+        v.as_object_mut().unwrap().remove("issuedAt");
+        assert!(!payload_matches(&bytes(&v), KEY, FP));
+    }
+
+    #[test]
+    fn rejects_mismatched_key_and_fingerprint() {
+        assert!(!payload_matches(&bytes(&full()), "PAYONCE-XXXX-XXXX-XXXX", FP));
+        assert!(!payload_matches(&bytes(&full()), KEY, "other-fp"));
+    }
+
+    #[test]
+    fn rejects_expired_and_malformed_payload() {
+        let mut v = full();
+        v["expiresAt"] = serde_json::json!("2020-01-01T00:00:00Z");
+        assert!(!payload_matches(&bytes(&v), KEY, FP));
+        assert!(!payload_matches(b"not json", KEY, FP));
+    }
 }

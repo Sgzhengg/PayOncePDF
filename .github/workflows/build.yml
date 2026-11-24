@@ -24,10 +24,50 @@ permissions:
 
 jobs:
   # ---------------------------------------------------------------------------
+  # 0) 质量门禁：前端回归不得进入三平台构建与制品（上线前 CodeReview P1-5）
+  #    Rust 全量单测依赖 Windows 版 pdfium.dll（test_pdfium() 直接加载
+  #    resources/pdfium.dll），因此放在 build job 的 Windows runner 上跑，
+  #    位于「供给 sidecar」之后、「Tauri build」之前，失败即阻止出包。
+  # ---------------------------------------------------------------------------
+  quality:
+    name: quality (typecheck / npm test / build / public key)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install frontend deps
+        run: npm ci
+
+      - name: TypeScript strict
+        run: npm run typecheck
+
+      - name: Frontend unit tests
+        run: npm test
+
+      - name: Frontend build
+        run: npm run build
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 公钥随包断言（P0-1 / P1-1）
+        run: python scripts/verify-public-key.py
+
+  # ---------------------------------------------------------------------------
   # 1) 三路矩阵构建（PRD 2.3）
   # ---------------------------------------------------------------------------
   build:
     name: build (${{ matrix.os }} / ${{ matrix.target }})
+    needs: quality
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -181,6 +221,16 @@ jobs:
           fi
 
       # -------------------------------------------------------------------
+      # 质量门禁：Rust 全量单测（含真实 PDF 文件级用例）只在 Windows runner 上跑，
+      # 因为 test_pdfium() 直接加载刚供给的 resources/pdfium.dll；失败即阻止出包。
+      # -------------------------------------------------------------------
+      - name: Rust 全量单测（Windows）
+        if: matrix.platform == 'windows'
+        shell: bash
+        working-directory: src-tauri
+        run: cargo test --lib
+
+      # -------------------------------------------------------------------
       # Tauri 构建（externalBin / resources / updater artifacts）
       # -------------------------------------------------------------------
       - name: Tauri build
@@ -191,6 +241,12 @@ jobs:
       - name: 统一安装包发行名
         shell: bash
         run: node scripts/rename-bundles.mjs --require --windows-only
+
+      # P0-1：打包后用生成清单实证公钥确实进了发行包（quality job 里只能查配置）
+      - name: 发行包公钥收录复核（P0-1）
+        if: matrix.platform == 'windows'
+        shell: bash
+        run: python scripts/verify-public-key.py
 
       # -------------------------------------------------------------------
       # Windows 签名：EV 证书 (signtool) 或 Azure Trusted Signing
@@ -526,6 +582,7 @@ jobs:
   # ---------------------------------------------------------------------------
   verify:
     name: verify (fixtures + acceptance smoke)
+    needs: quality
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
