@@ -28,6 +28,16 @@ test('一键部署脚本默认只检查，显式 --deploy 才部署', () => {
   assert.match(src, /--project-name/, '部署命令必须指定项目名');
 });
 
+test('部署脚本识别 API Token 认证模式，且不篡改用户凭据', () => {
+  const src = read('scripts/deploy-cloudflare-site.mjs');
+  assert.match(src, /process\.env\.CLOUDFLARE_API_TOKEN/, '必须检测 CLOUDFLARE_API_TOKEN');
+  assert.match(src, /mode: 'api-token'/, '必须区分 Token 认证与 OAuth');
+  assert.match(src, /CLOUDFLARE_ACCOUNT_ID/, '必须支持显式 account-id');
+  assert.match(src, /You are logged in with an API Token/, '必须说明 login 冲突的原因');
+  assert.doesNotMatch(src, /process\.env\.CLOUDFLARE_API_TOKEN\s*=/, '不得覆盖用户的 API Token');
+  assert.doesNotMatch(src, /spawnSync\([^)]*['"]login['"]/, '不得自动执行 wrangler login');
+});
+
 test('部署脚本复用验收门禁，且只从 site-cloudflare/ 部署', () => {
   const src = read('scripts/deploy-cloudflare-site.mjs');
   assert.match(src, /checkLocalFiles\(\)/, '部署前必须跑本地验收');

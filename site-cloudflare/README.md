@@ -52,13 +52,18 @@
 仓库提供零依赖脚本，**默认只做检查，加 `--deploy` 才真正上线**：
 
 ```bash
-npm run site:check       # 8 页结构 / 180 条链接 / 价格 / 占位 / 目录卫生 + Wrangler 登录状态
-npx wrangler login       # 浏览器授权 Cloudflare 账号（必须你本人操作）
+npm run site:check       # 8 页结构 / 180 条链接 / 价格 / 占位 / 目录卫生 + 认证模式报告
 npm run site:deploy      # 门禁通过后执行 wrangler pages deploy
 npm run site:verify -- https://<项目名>.pages.dev    # 上线后逐页验收
 ```
 
-`site:deploy` 不会自动登录、不会绑定自定义域、不会修改 DNS、不会读写 Cloudflare 凭据文件。等价手工命令（工作目录为本目录）：
+**认证模式（重要）**：Wrangler 在 API Token 与 OAuth 之间二选一，不能并存。
+
+- 若环境变量 `CLOUDFLARE_API_TOKEN` 已设置（本机 2026-11-24 实测：用户级环境变量，已通过 `wrangler whoami` 与 `pages project list` 验证），**已处于登录状态，不要再执行 `npx wrangler login`** —— 会报 `You are logged in with an API Token. Unset the CLOUDFLARE_API_TOKEN in the environment to log in via OAuth.`。直接跑 `npm run site:deploy` 即可；若部署报权限不足，到 Dashboard → Profile → API Tokens 给该 Token 补 `Cloudflare Pages:Edit`。
+- 若未设置该变量，才需要你本人执行 `npx wrangler login` 走浏览器 OAuth 授权。
+- 确实要从 Token 切回 OAuth：仅在当前窗口清除（cmd `set CLOUDFLARE_API_TOKEN=` / PowerShell `Remove-Item Env:CLOUDFLARE_API_TOKEN`），或到「系统属性 → 环境变量 → 用户变量」删除该条目；脚本不会替你 unset、覆盖或写入任何凭据。
+
+`site:deploy` 不会自动登录、不会绑定自定义域、不会修改 DNS、不会读写 Cloudflare 凭据文件、不会修改用户级环境变量。等价手工命令（工作目录为本目录）：
 
 ```bash
 npx wrangler pages dev .                 # 本地预览（可选）
