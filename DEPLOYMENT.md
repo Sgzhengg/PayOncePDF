@@ -36,10 +36,52 @@
 
 **已完成**：Pages 项目 `payoncepdf` 已创建并部署，固定地址 **https://payoncepdf.pages.dev/**，中英 8 页线上逐页验收通过（见「首次部署记录」）。现在可以先打开这个地址看官网，不必等自定义域生效。
 
-1. **接入 Cloudflare**：Dashboard → *Add a site* → `payoncepdf.com`，拿到分配的两个 nameserver；到阿里云万网把该域名的 DNS 服务器改成这两个 NS，等待生效（10 分钟～数小时）。
+1. **接入 Cloudflare**：Dashboard → *Add a site* → `payoncepdf.com`，拿到分配的两个 nameserver；到阿里云万网把该域名的 DNS 服务器改成这两个 NS，等待生效（10 分钟～数小时）。**逐步点击路径见下方「万网修改 DNS 服务器」**。
 2. **绑自定义域**：Pages → *Settings* → *Domains* → Add `payoncepdf.com`（可另加 `www.payoncepdf.com`，`_redirects` 已做 www→主域 301），等 Universal SSL 状态变 **Active**；根域用 CNAME flattening，**不要在阿里云手工填猜测的 A 记录**。
 
 后续改代码可用 `npm run site:deploy` 重新部署；或改用 Git 集成（仓库 `Sgzhengg/PayOncePDF` / 分支 `main`，Framework preset **None**、Build command **留空**、Build output directory **`site-cloudflare`**），但须按「上线前置」处理 webhook 绕过 CI 的问题。**Add a site、改阿里云 NS、绑自定义域**这些账号/域名控制权操作仍必须用户本人在控制台完成。
+
+### 万网修改 DNS 服务器（逐步可照做，2026-11-24 核对）
+
+> 这一步改的是**注册局层面的权威 NS（谁负责解析）**，不是「解析设置」里加 A / CNAME / NS 记录。在阿里云云解析控制台加记录无效，必须去**域名控制台**改 DNS 服务器。
+
+**A. 先在 Cloudflare 拿到两个 NS**
+
+1. Dashboard → **Add a site**（添加站点）→ 输入根域 `payoncepdf.com`（**不带 www、不带 https**）。
+2. 选 **Free** 计划 → 保持默认「快速扫描 DNS 记录」→ Continue。
+3. 该域名目前没有 A / CNAME（权威 NS 只返回 SOA 否定应答），扫描为空时会弹 `Add records later — Without DNS records, Cloudflare is unable to activate your site`，**直接 Confirm**；Pages 后续会自动补记录。
+4. 点 **Continue to activation** → 进入 **Update your nameservers** 页：
+   - *Add each of your assigned Cloudflare nameservers*：两个 `xxx.ns.cloudflare.com`。**每个账号分配的名字不同，必须用自己页面显示的**，别抄教程示例。
+   - *Delete your other nameservers*：列出的 `dns19.hichina.com` / `dns20.hichina.com`（本机实测）正是要替换掉的万网默认 NS。
+5. 复制这两个 NS。此时站点状态为 **Pending nameserver update**，属正常。
+
+**B. 再到阿里云万网改 DNS 服务器**
+
+1. 登录阿里云控制台 → **域名与网站 → 域名**（域名列表）。
+2. 找到 `payoncepdf.com` → 点操作列的 **管理**。
+3. 左侧菜单 **DNS 管理 → DNS 修改**（新版也叫「DNS 修改 / 修改 DNS 服务器」）；页面显示当前 DNS 服务器为 `dns19/dns20.hichina.com`。
+4. 点 **修改 DNS 服务器** → 选 **修改为自定义 DNS**。
+5. 两个「DNS 服务器」输入框分别粘贴 A 步骤的两个 `*.ns.cloudflare.com`（本项目只要 2 个，需要更多行点 **+ 添加 DNS**）。**结尾不要带点、不要有空格**。
+6. 点 **确定** → 弹出「请确认该操作」→ 选 **手机认证 / 获取验证码**（短信或邮箱）→ 填验证码 → 再点 **确定**。阿里云会要求一次安全验证，这是「没保存成功」最常见的原因。
+7. 回到 DNS 修改页，**「当前 DNS 服务器」变成两个 `*.ns.cloudflare.com` 即提交成功**。
+
+**C. 等待与验证**
+
+- 生效时间：常见 10 分钟～数小时；阿里云官方口径受旧 NS 的 TTL 影响、最长 48 小时。Cloudflare 检测到后会发邮件，状态从 *Pending nameserver update* 变 **Active**。
+- 本机验证：`nslookup -type=NS payoncepdf.com` 应只返回那两个 `*.ns.cloudflare.com`；`nslookup payoncepdf.com` 出现 A 记录说明已开始解析。也可 `curl -I https://payoncepdf.com/` 看响应是否带 `server: cloudflare` / `cf-ray`（绑定自定义域之后）。
+- 长时间不生效：检查是否填了尾点或空格、是否只填了一个 NS、是否误在「解析设置」页操作、注册局安全锁是否拦截。
+
+**常见坑**
+
+| 坑 | 说明 |
+| --- | --- |
+| 跑去「解析设置」加记录 | 无效。注册商决定「谁来解析」，解析服务商决定「解析成什么」；换 NS 只能在域名控制台改 |
+| 抄教程里的 NS 名字 | Cloudflare 每个账号分配不同的 `xxx.ns.cloudflare.com`，必须用自己页面显示的 |
+| 保留旧的万网 NS | 只保留 Cloudflare 的 2 个，旧的 `dns*.hichina.com` 全部替换掉 |
+| DNSSEC 已开启 | 先在阿里云「DNS 管理 → DNSSEC 设置」关闭（新买域名默认未开），否则切换后可能解析失败；需要时再在 Cloudflare 侧重开 |
+| 原有 MX / TXT 记录 | 改 NS 后阿里云云解析里的记录不再生效，须先在 Cloudflare **DNS → Records** 补上（邮箱类保持「仅 DNS / 灰云」）。本项目域名当前无任何网站记录，影响很小；若绑过企业邮箱务必检查 |
+
+**只有 C 验证通过后**，才做上面第 2 步：Pages → Settings → Domains → Add `payoncepdf.com`，等 Universal SSL **Active**。Cloudflare 会自动创建指向 Pages 的 CNAME，**不需要手工填 A 记录**。
 
 ## Wrangler 认证模式（API Token 与 OAuth 互斥）
 
