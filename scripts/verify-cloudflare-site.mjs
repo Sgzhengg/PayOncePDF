@@ -190,8 +190,18 @@ export function checkLocalFiles() {
   }
   if (fs.existsSync(path.join(SITE, '_redirects'))) {
     const r = read('_redirects');
-    add('_redirects 干净路径', ['/download', '/pricing', '/help', '/en/', 'www.payoncepdf.com']
-      .every((k) => r.includes(k)), '中文 3 页 / 英文镜像 / www 301');
+    const rules = r.split('\n').map((l) => l.trim())
+      .filter((l) => l && !l.startsWith('#'));
+    const rewrites = rules.filter((l) => /\s200\s*$/.test(l));
+    const redirects301 = rules.filter((l) => /\s301\s*$/.test(l));
+    const hasWww = redirects301.some((l) => l.includes('www.payoncepdf.com'));
+    const legacy = redirects301.some((l) => l.includes('/index.en.html'))
+      && redirects301.some((l) => l.includes('/zh/'));
+    add('_redirects 无循环 rewrite',
+      rewrites.length === 0 && redirects301.length >= 3 && hasWww && legacy,
+      rewrites.length
+        ? `含 ${rewrites.length} 条 200 rewrite，会与 Pages 的 .html→无扩展名 308 形成无限循环`
+        : `301 跳转 ${redirects301.length} 条 / 200 rewrite 0 条（干净路径由 Pages 原生提供）`);
   }
 
   return { results, blockers, warnings, stats: { pages: PAGES.length, links: linkCount } };
@@ -217,8 +227,10 @@ export async function checkHttp(base) {
   for (const p of paths) {
     const isClean = CLEAN_PATH.test(p);
     try {
+      // 跟随重定向：Cloudflare Pages 会把 /x.html 308 到干净路径 /x，属于预期行为；
+      // 若存在循环（例如 200 rewrite 与 308 互相来回），fetch 会抛错并被记为失败。
       const r = await fetch(origin + p, {
-        redirect: 'manual',
+        redirect: 'follow',
         signal: AbortSignal.timeout(12_000),
       });
       if (r.status !== 200) {
@@ -236,13 +248,13 @@ export async function checkHttp(base) {
     } catch (e) {
       const msg = e?.message || String(e);
       if (isClean && isLocal) warnings.push(`${p} → ${msg}`);
-      else failures.push(`${p} → 请求失败：${msg}`);
+      else failures.push(`${p} → 请求失败：${msg}${/redirect/i.test(msg) ? '（疑似重定向循环）' : ''}`);
     }
   }
   add('逐页 HTTP 验收', failures.length === 0,
     failures.length
       ? failures.slice(0, 5).join(' | ') + (failures.length > 5 ? ` …共 ${failures.length} 项` : '')
-      : `${paths.length} 条路径均 200，标题与产品标识齐全`);
+      : `${paths.length} 条路径均可达（允许 Pages 的 .html→干净路径 308），标题与产品标识齐全`);
 
   if (!isLocal) {
     try {

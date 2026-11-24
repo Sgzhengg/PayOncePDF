@@ -54,6 +54,28 @@ test('npm 提供 site:check / site:deploy / site:verify 三个入口', () => {
   assert.match(pkg.scripts.test, /site-contract\.test\.mjs/, '官网契约必须进入 CI 门禁');
 });
 
+test('_redirects 不含 200 rewrite（线上实测会与 Pages 308 形成无限循环）', () => {
+  const txt = read('site-cloudflare/_redirects');
+  const rules = txt.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#'));
+  const rewrites = rules.filter((l) => /\s200\s*$/.test(l));
+  assert.equal(rewrites.length, 0,
+    'Pages 原生支持干净路径；200 rewrite 会让 /x → /x.html 与 .html→/x 的 308 互相来回');
+  assert.ok(rules.filter((l) => /\s301\s*$/.test(l)).length >= 3, '须保留 www 与旧路径 301 兼容');
+});
+
+test('首次部署只在项目明确不存在时自动创建 Pages 项目', () => {
+  const src = read('scripts/deploy-cloudflare-site.mjs');
+  assert.match(src, /Pages project .* does not exist/i, '必须精确匹配 Wrangler 的项目不存在报错');
+  assert.match(src, /'pages', 'project', 'create'/, '首次部署须显式创建项目');
+  assert.match(src, /--production-branch/, '创建项目须指定生产分支');
+});
+
+test('线上 HTTP 验收跟随重定向，而非把 Pages 的 308 误判为失败', () => {
+  const src = read('scripts/verify-cloudflare-site.mjs');
+  assert.match(src, /redirect: 'follow'/, '.html 308 到干净路径是 Pages 预期行为');
+  assert.match(src, /疑似重定向循环/, '循环必须被明确报出');
+});
+
 test('8 页中英镜像齐全，Gumroad 保持占位且不造假直链', () => {
   assert.equal(PAGES.length, 8);
   const all = PAGES.map((p) => read(`site-cloudflare/${p}`)).join('\n');

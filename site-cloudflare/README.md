@@ -17,7 +17,7 @@
 
 首页两个 CTA 分别指向下载页与价格页，不再放在同一页。`/en/` 下为英文镜像四页，结构完全同构。
 
-**URL 策略（避免本地 404）**：上表是线上对外使用的干净 URL，由 `_redirects` 重写到对应 `.html` 文件；8 个页面内所有导航、按钮、语言切换一律直连 `.html`（如 `/download.html`、`/en/index.html`），因此 `python -m http.server` 等任意静态服务器都能直接点击浏览。`canonical` / `hreflang` 仍指向干净 URL，权重集中且不与 `_redirects` 冲突。`_redirects` **只在 Cloudflare Pages 生效**，本地静态服务器不解析它——这正是用普通静态服务器访问 `/download` 会看到 `Error code: 404 / File not found.` 的原因。
+**URL 策略（避免本地 404）**：上表是线上对外使用的干净 URL，由 **Cloudflare Pages 原生 clean URL** 映射到对应 `.html` 文件（`/download` → `download.html` 返回 200，`/download.html` → 308 跳回 `/download`）；`_redirects` 里只保留 301 跳转，**不要写 200 rewrite**，否则会与这条 308 互相来回造成无限重定向循环（2026-11-24 线上实测）。8 个页面内所有导航、按钮、语言切换一律直连 `.html`（如 `/download.html`、`/en/index.html`），因此 `python -m http.server` 等任意静态服务器都能直接点击浏览。`canonical` / `hreflang` 仍指向干净 URL，权重集中。本地静态服务器不提供 Pages 的 clean URL 映射——这正是用普通静态服务器访问 `/download` 会看到 `Error code: 404 / File not found.` 的原因。
 
 ### 转化流程：两条入口，同一份 7 天试用
 
@@ -40,7 +40,7 @@
 | `../scripts/serve-cloudflare-site.py` | 零依赖本地预览服务器（**在部署目录之外**，模拟 `_redirects` 的干净路径与 301 跳转） |
 | `wrangler.toml` | Cloudflare Pages 项目配置（`pages_build_output_dir = "."`） |
 | `_headers` | 安全响应头（CSP / HSTS / nosniff / SAMEORIGIN / Referrer-Policy / Permissions-Policy）、`README.md` 与 `wrangler.toml` 的 noindex、`styles.css` 短缓存 |
-| `_redirects` | www → 主域 301；`/download` `/pricing` `/help` 及 `/en/` 四页的干净路径 rewrite；旧链接兼容 |
+| `_redirects` | www → 主域 301、旧链接 `/index.en.html` / `/zh/` 301；**干净路径由 Pages 原生提供，禁止 200 rewrite**（会与 .html→无扩展名 308 形成循环） |
 | `README.md` | 本文件 |
 
 **多语言实现**：沿用项目既有"文件级镜像"惯例，不引入 i18n 框架。语言切换器为普通链接，各页跳到对应语言同一页；`hreflang`（zh-CN/en/x-default）+ `canonical` 已逐页标注。任务提到的 es/pt/de/fr 在本项目**不存在**，未伪造。
@@ -70,7 +70,9 @@ npx wrangler pages dev .                 # 本地预览（可选）
 npx wrangler pages deploy . --project-name payoncepdf --branch main
 ```
 
-首次部署会创建 Pages 项目并返回 `*.pages.dev` 预览地址；后续同名部署即更新。脚本细节见根目录 `DEPLOYMENT.md`。
+首次部署会创建 Pages 项目并返回 `*.pages.dev` 预览地址（Wrangler 4.x 需先 `pages project create`，脚本已自动处理）；后续同名部署即更新。
+
+**当前状态（2026-11-24）**：项目 `payoncepdf` 已创建并部署，固定地址 **https://payoncepdf.pages.dev/**，线上 8 页 / 13 条路径逐页验收通过；自定义域 `payoncepdf.com` 尚未绑定，输该域名仍打不开。首次部署曾因 `_redirects` 的 200 rewrite 与 Pages 原生 308 冲突造成重定向循环，已修复，详见根目录 `DEPLOYMENT.md`「首次部署记录」。
 
 ### 方式 B：GitHub 集成（推荐，改代码自动上线）
 
@@ -136,7 +138,7 @@ python ../scripts/serve-cloudflare-site.py 8899
 # 或 npx wrangler pages dev .   （需 wrangler，会读取 _redirects）
 ```
 
-`../scripts/serve-cloudflare-site.py` 基于 Python 标准库、零依赖，内置与 `_redirects` 一致的 200 rewrite 与 301 跳转，可验证 `/download`、`/pricing`、`/help`、`/en/…`，以及旧链接 `/index.en.html`、`/zh/` 的行为。
+`../scripts/serve-cloudflare-site.py` 基于 Python 标准库、零依赖，在本地模拟 **Pages 原生 clean URL 映射**（`/download` → `download.html` 内部 200）与 `_redirects` 的 301 跳转，可验证 `/download`、`/pricing`、`/help`、`/en/…`，以及旧链接 `/index.en.html`、`/zh/` 的行为。注意这只是本地模拟：线上 `_redirects` 不能写这些 200 rewrite，否则会与 Pages 的 308 形成循环。
 
 > ⚠️ 若浏览器出现 `Error response / Error code: 404 / Message: File not found. / Error code explanation: 404 - Nothing matches the given URI.`，这是 Python `http.server` 的默认 404 页，说明你用普通静态服务器访问了干净路径 `/download`（或点击了旧版页面里的干净链接）。**回到 `http://127.0.0.1:8899/` 根路径刷新后再点导航**，或改用 `python ../scripts/serve-cloudflare-site.py`。HTML 修改会被静态服务器实时读取，无需重启。
 

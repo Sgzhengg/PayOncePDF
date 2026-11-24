@@ -12,6 +12,9 @@
  *   - 不打开浏览器、不自动执行 wrangler login、不读写 Cloudflare 凭据文件、
  *     不修改用户级环境变量、不绑定自定义域、不修改 DNS。
  *   - 部署前强制跑 scripts/verify-cloudflare-site.mjs 的本地文件门禁，失败即中止。
+ *   - 首次部署：Wrangler 4.x 不再由 pages deploy 自动建项目。仅当 deploy 明确报
+ *     "The Pages project ... does not exist" 时，才执行 `pages project create` 并重试；
+ *     其他任何错误都不会创建项目。--check 模式永远没有任何写操作。
  *
  * 认证模式（Wrangler 二选一，不能并存）：
  *   A. CLOUDFLARE_API_TOKEN 已设置 → Token 认证，已登录，**不要再执行 wrangler login**
@@ -162,6 +165,7 @@ function main() {
     console.log('--deploy：门禁通过后执行 wrangler pages deploy（需已通过 API Token 或 OAuth 认证）。');
     console.log('--account-id：仅注入到 wrangler 子进程；不传则用 CLOUDFLARE_ACCOUNT_ID，都没有时由 wrangler 自动推断。');
     console.log('注意：已设置 CLOUDFLARE_API_TOKEN 时 Wrangler 强制 Token 认证，执行 wrangler login 会报错；此时无需 login。');
+    console.log('首次部署：仅当 Wrangler 报项目不存在时，脚本会创建同名 Pages 项目并重试；其余错误不会创建。');
     return;
   }
 
@@ -209,16 +213,38 @@ function main() {
   console.log(`  认证通过（${auth.mode === 'api-token' ? 'API Token' : 'OAuth'}）。`);
 
   const args = ['pages', 'deploy', '.', '--project-name', opts.project, '--branch', opts.branch];
+  const runOpts = { cwd: SITE, timeout: 600_000, accountId: opts.accountId };
   console.log(`\n=== 部署: ${w.cmd} ${[...w.prefix, ...args].join(' ')} ===`);
-  const r = spawnWrangler(w, args, {
-    inherit: true,
-    cwd: SITE,
-    timeout: 600_000,
-    accountId: opts.accountId,
-  });
+
+  // 捕获输出而非 inherit：Wrangler 4.x 不再由 pages deploy 自动创建项目，
+  // 需要识别 "does not exist" 后显式 create 再重试（仅此一种情况才创建）。
+  const run = (a) => {
+    const p = spawnWrangler(w, a, runOpts);
+    const out = `${p.stdout || ''}${p.stderr || ''}`;
+    if (out.trim()) process.stdout.write(out.endsWith('\n') ? out : `${out}\n`);
+    return { ...p, out };
+  };
+
+  let r = run(args);
+  if (r.status !== 0 && /Pages project .* does not exist/i.test(r.out)) {
+    console.log(`\n=== 首次部署：项目 ${opts.project} 不存在，先创建 Pages 项目 ===`);
+    const created = run([
+      'pages', 'project', 'create', opts.project, '--production-branch', opts.branch,
+    ]);
+    if (created.error || created.status !== 0) {
+      console.error(`\n=> 创建 Pages 项目失败（exit ${created.status ?? 'unknown'}）。`);
+      console.error('   可在 Dashboard → Workers & Pages → Create → Pages 手动创建，再重跑 --deploy。');
+      console.error('   常见原因：Token 缺少 `Cloudflare Pages:Edit` 权限，或项目名已被占用。');
+      process.exitCode = 1;
+      return;
+    }
+    console.log('\n=== 项目已创建，重新部署 ===');
+    r = run(args);
+  }
+
   if (r.error || r.status !== 0) {
     console.error(`\n=> 部署失败（exit ${r.status ?? 'unknown'}）：${r.error?.message || '见上方 wrangler 输出'}`);
-    console.error('   常见原因：未登录、项目名无权限、网络不通、或 Pages 项目需先在控制台创建。');
+    console.error('   常见原因：Token 缺少 `Cloudflare Pages:Edit` 权限、项目名无权限、网络/代理不通。');
     process.exitCode = 1;
     return;
   }

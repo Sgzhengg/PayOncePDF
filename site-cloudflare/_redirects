@@ -1,25 +1,24 @@
 # Cloudflare Pages 重定向规则
+#
+# 重要：这里**只放 301 跳转，不要写 200 rewrite**。
+# Pages 原生支持 clean URLs：/download 会自动映射到 download.html 并返回 200，
+# 而 /download.html 会 308 跳到 /download。若再用 200 rewrite 把 /download
+# 指回 /download.html，就会与这条 308 互相来回，形成无限重定向循环
+# （2026-11-24 线上实测：curl -L 报 Maximum (50) redirects followed）。
+# 页面内链接直连 .html 是为了兼容本地普通静态服务器；线上点击后 308 到干净路径，
+# 属于预期行为，canonical 也已指向干净 URL。
+
 # www → 主域（统一到 payoncepdf.com，避免重复内容）
 https://www.payoncepdf.com/*  https://payoncepdf.com/:splat  301
 
-# 干净路径：四页各自独立 URL（参照 zhuazhua.video 的 / /download /pricing /help）
-# 中文站
-/download   /download.html  200
-/pricing    /pricing.html   200
-/help       /help.html      200
-
-# 英文站（/en/ 下同样四页）
-/en/            /en/index.html      200
-/en/download    /en/download.html   200
-/en/pricing     /en/pricing.html    200
-/en/help        /en/help.html       200
-
-# 旧路径兼容：单页时代的 index.en.html 与 #锚点入口，避免老链接 404
+# 旧路径兼容：单页时代的 index.en.html 与 /zh/ 入口，避免老链接 404
 /index.en.html  /en/  301
 /zh/            /     301
 
 # 说明：
 # - 中文为默认版本（x-default）；英文在 /en/ 下，各有首页/下载/价格/帮助四页。
+# - 干净路径（/、/download、/pricing、/help、/en/、/en/download、/en/pricing、/en/help）
+#   由 Pages 原生 clean URL 提供，无需在 _redirects 里重复声明。
 # - Gumroad 商品未创建，pricing 页购买按钮为明确占位（href="#gumroad-pending"），不跳无效结账页。
 # - 法务与授权说明放在各页 footer，不伪造独立条款页。
 # - 旧站 site/ 的浅色多页是独立部署物，与本 Pages 站无关。

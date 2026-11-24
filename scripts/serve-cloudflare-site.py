@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """PayOnce PDF 官网本地预览服务器（Python 标准库，零依赖）。
 
-模拟 Cloudflare Pages 的 `_redirects`，让线上使用的"干净 URL"在本地也能打开：
+模拟 Cloudflare Pages 原生的 clean URL 行为，让线上使用的"干净 URL"在本地也能打开：
 
     python scripts/serve-cloudflare-site.py             # http://127.0.0.1:8000/
     python scripts/serve-cloudflare-site.py 8899        # 指定端口
@@ -25,7 +25,10 @@ import urllib.parse
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent / "site-cloudflare"
 
-# 与 _redirects 中的 200 rewrite 保持一致
+# 模拟 Pages 原生 clean URL：无扩展名路径内部映射到 .html 并返回 200。
+# 注意：线上 _redirects **不能**写这些 200 rewrite，否则会与 Pages 的
+# .html → 无扩展名 308 互相来回，形成无限重定向循环（2026-11-24 线上实测）。
+# 本脚本只负责让本地普通静态服务器补上这个映射。
 REWRITES = {
     "/": "/index.html",
     "/download": "/download.html",
