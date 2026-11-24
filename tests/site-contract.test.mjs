@@ -54,13 +54,16 @@ test('npm 提供 site:check / site:deploy / site:verify 三个入口', () => {
   assert.match(pkg.scripts.test, /site-contract\.test\.mjs/, '官网契约必须进入 CI 门禁');
 });
 
-test('_redirects 不含 200 rewrite（线上实测会与 Pages 308 形成无限循环）', () => {
+test('_redirects 只含可生效的路径规则（无 200 rewrite、无域名级死规则）', () => {
   const txt = read('site-cloudflare/_redirects');
   const rules = txt.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#'));
   const rewrites = rules.filter((l) => /\s200\s*$/.test(l));
+  const redirects301 = rules.filter((l) => /\s301\s*$/.test(l));
   assert.equal(rewrites.length, 0,
     'Pages 原生支持干净路径；200 rewrite 会让 /x → /x.html 与 .html→/x 的 308 互相来回');
-  assert.ok(rules.filter((l) => /\s301\s*$/.test(l)).length >= 3, '须保留 www 与旧路径 301 兼容');
+  assert.equal(rules.filter((l) => /^https?:\/\//.test(l)).length, 0,
+    'Pages 官方明确不支持域名级重定向；www→apex 必须用 Redirect Rules，不得留死规则');
+  assert.ok(redirects301.length >= 2, '须保留 /index.en.html 与 /zh/ 两条旧路径 301 兼容');
 });
 
 test('首次部署只在项目明确不存在时自动创建 Pages 项目', () => {
@@ -82,4 +85,31 @@ test('8 页中英镜像齐全，Gumroad 保持占位且不造假直链', () => {
   assert.doesNotMatch(all, /href="https:\/\/gumroad\.com\/l\//i);
   assert.equal((all.match(/aria-disabled="true"/g) || []).length, 2);
   assert.doesNotMatch(all, /\$29|¥149/, '部署物不得残留早鸟价');
+});
+
+test('隐私披露中英 8 页一致，明确告知激活提交的指纹哈希', () => {
+  for (const p of PAGES) {
+    const s = read(`site-cloudflare/${p}`);
+    assert.match(s, /SHA-256/, `${p} 必须披露指纹哈希算法`);
+    assert.match(s, /设备指纹|device fingerprint/, `${p} 必须说明提交了设备指纹`);
+    assert.match(s, /不用于广告|no ads, no selling/, `${p} 必须写明邮箱用途边界`);
+    assert.doesNotMatch(
+      s,
+      /我们不主动收集邮箱|we don't collect emails automatically|does not collect emails automatically/,
+      `${p} 仍有含混的旧口径`,
+    );
+  }
+  assert.match(read('site-cloudflare/help.html'), /激活会上传什么/);
+  assert.match(read('site-cloudflare/en/help.html'), /What does activation send/);
+  for (const p of ['help.html', 'en/help.html']) {
+    const s = read(`site-cloudflare/${p}`);
+    const m = s.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
+    assert.ok(m, `${p} 必须有 FAQ JSON-LD`);
+    const ld = JSON.parse(m[1]);
+    assert.equal(ld['@type'], 'FAQPage');
+    assert.ok(
+      ld.mainEntity.some((q) => /激活会上传什么|What does activation send/.test(q.name)),
+      `${p} 的 JSON-LD 需同步新增激活问答`,
+    );
+  }
 });

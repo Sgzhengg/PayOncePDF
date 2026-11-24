@@ -32,7 +32,7 @@
 
 > 建议顺序：**先用 A 跑完 G0–G7、G9**（功能面），再决定是否为 G8 走 B。
 >
-> **2026-11-24 更新（CodeReview 修复后）**：B 路径安装包再次重建为 30.23 MiB / 31,700,283 B，SHA-256 `f1276027e5baa4733b1ed2acae651511cbabf96e6db0922c37f96d721ae83f03`（`docs/test-report.md` §40），`bd80c265…fc41048e0`（§39）及更早的所有哈希作废。新包含 F21 自检与 Ed25519 公钥随包，**安装态请优先核对 `keys/public.key` 存在**、再点一次「运行自检」，要求 `summary.total === 32 && summary.failed === 0` 且 `env.license_public_key.ok === true`，然后按 §9 执行人工用例。
+> **2026-11-24 更新（opener 权限加固后）**：B 路径安装包再次重建为 30.25 MiB / 31,719,938 B，SHA-256 `8307c7b57aefedc9d5da18ce25a6523d750066aab95a5cf5ca826a01616d2d92`（`docs/test-report.md` §41），`f1276027…721ae83f03`（§40）、`bd80c265…fc41048e0`（§39）及更早的所有哈希作废。**安装态请优先核对 `keys/public.key` 存在**、再点一次「运行自检」，要求 `summary.total === 32 && summary.failed === 0` 且 `env.license_public_key.ok === true`，然后按 §9 执行人工用例；本轮额外建议验证「打开缴费页」能跳到价格页、而任意其它外链不会应用内打开（opener allow-list）。
 > 若先修 BLOCK 缺陷（`tauri.conf.json` → 重建安装包），则 B 可完整覆盖 G8 与 OCR。
 
 **A 的等价命令行**（PowerShell，便于同时设置环境变量）：

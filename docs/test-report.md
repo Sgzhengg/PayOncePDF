@@ -1699,3 +1699,55 @@ npx tauri build --bundles nsis && npm run bundle:rename
 - **本地试用防重置不是密码学防线**：`trial.json` 与 `trial.started` 若被同时删除，纯本地方案仍会重新给 7 天；彻底解决依赖服务端激活记录（每台设备/每把 key 的签发与上限 3 台）。本轮只消除了「误删/随手删一个文件即可无限续期」这一最廉价路径。
 - **Cloudflare Git 集成是独立 webhook，不受 GitHub Actions 质量门禁约束**；上线前必须关闭「推 main 即自动部署」或改为门禁通过后触发，详见 `DEPLOYMENT.md`。
 - 本轮只重建 Windows NSIS；未构建、未签名、未公证 macOS 产物。
+
+## 41. opener 权限加固、隐私披露与官网 www 收口（2026-11-24，§40 之后）
+
+> 触发：用户授权「由你决定继续处理」。本轮只做**不需要编造运营主体、不伪造外部账号状态**的纯代码项，全部来自上线前 CodeReview 的 P1-7 / P2-2。
+
+### 41.1 改动范围
+
+| 项 | 文件 | 内容 |
+| --- | --- | --- |
+| P2-2 opener 权限 | `src-tauri/capabilities/default.json` | `opener:default`（含 `allow-default-urls`，可打开任意 http/https/mailto/tel）→ `opener:allow-open-url` + 4 条显式 scope：`https://payoncepdf.com/*`、`https://www.payoncepdf.com/*`、`https://gumroad.com/*`、`https://*.gumroad.com/*`。前端实际只有 `openUrl(PAYMENT_URL)` 一个调用点 |
+| P2-2 契约 | `tests/opener-contract.test.mjs`（新增）、`package.json` | 禁止退回 `opener:default` / `allow-open-path` / `allow-reveal-item-in-dir`，禁止 `https://*` 过宽通配，断言 `PAYMENT_URL` 落在 allow-list 内且不是伪造的 Gumroad 直链 |
+| P1-7 隐私披露 | 中英 8 页 footer、`help.html` / `en/help.html` 的 FAQ 与 JSON-LD | 补上「一次性激活向激活服务提交设备指纹 **SHA-256 哈希**（不可逆、不含文件内容/文件名），用于校验设备数」；把「不主动收集邮箱」改为「本站无账号/表单/邮件列表，不主动抓取；你主动发邮件时我们会在邮件中看到地址，仅用于回复与该提醒，不用于广告、不出售」 |
+| P1-7 契约 | `tests/site-contract.test.mjs` | 8 页均须含 SHA-256 与设备指纹/邮箱用途披露、不得残留旧口径；中英 help 页 JSON-LD 可解析且含新增激活问答 |
+| www 死规则 | `site-cloudflare/_redirects`、`scripts/verify-cloudflare-site.mjs`、契约测试 | Pages 官方明确不支持域名级重定向（"Domain-level redirects ❌"），原 `https://www.payoncepdf.com/* → 主域 301` 从未生效（线上实测 www 返回 200）。删掉死规则，门禁新增「不得出现域名级 source」，301 规则由 3 条变 2 条（旧路径兼容） |
+
+### 41.2 官网 www 绑定的真实边界
+
+- 通过 Cloudflare API 添加 `www.payoncepdf.com` 自定义域 + proxied CNAME `www → payoncepdf.pages.dev`；两个域名的 `status` / `verification` / `validation` 最终均为 `active`。
+- **但 www 返回 200 而非 301**：这是 Pages `_redirects` 的能力边界，不是配置失误。现在 www 是同一项目的镜像，8 页 canonical 全部指向 `https://payoncepdf.com/`，由 canonical 归一重复内容。
+- 要做到严格 301 需用 Cloudflare **Redirect Rules**（`http_request_dynamic_redirect` phase）；本次调用 `/zones/{id}/rulesets` 返回 **403 Authentication error**，说明现有 API Token 没有 Rulesets 读写权限。**未擅自修改用户 Token 权限**，已列为 `DEPLOYMENT.md` 决策清单第 11 项。
+
+### 41.3 验证结果
+
+| 项 | 结果 |
+| --- | --- |
+| `npm test` | **73/0**（新增 4 条 opener 契约 + 1 条隐私契约） |
+| `npm run typecheck` / `npm run build` | PASS |
+| `cargo test --lib` | **105/0** |
+| `cargo check --lib` | PASS（仅一个无关的增量编译锁文件警告） |
+| Tauri 生成的 `gen/schemas/capabilities.json` | 只有 `opener:allow-open-url` + 4 条 scope，`opener:default` / `allow-default-urls` / `allow-reveal-item-in-dir` 均不在生效列表 |
+| 公钥断言 | **5/5 PASS**（含 NSIS 清单收录 `keys/public.key`） |
+| 官网本地门禁 `site:check` | **10/10 PASS**（`_redirects` 项现为「301 跳转 2 条 / 域名级规则 0 条 / 200 rewrite 0 条」） |
+
+### 41.4 重新打包（因 capabilities 改动必须重编译）
+
+`npx tauri build --bundles nsis` → `BUILD_EXIT=0`、`RENAME_EXIT=0`，release 编译约 3 分钟；日志 `tests/out/build-opener.log`，旧包备份 `tests/out/*.PRE-OPENER.*`。
+
+| 项 | 值 |
+| --- | --- |
+| 新包 | `PayOnce-PDF-Setup-1.0.0.exe` **31,719,938 B / 30.25 MiB** |
+| SHA-256 | `8307c7b57aefedc9d5da18ce25a6523d750066aab95a5cf5ca826a01616d2d92` |
+| 作废包 | `f1276027…721ae83f03`（§40，31,700,283 B）、`bd80c265…fc41048e0`（§39） |
+| 更新签名 | 三段验签 OK（key id `654e340d1fe4b8e5`，篡改 1 bit 负向自检通过），`.sig` 440 B |
+| release 自检 | `PAYONCE_EXE=E:/PayOncePDF/src-tauri/target/release/payoncepdf.exe` → `payonce.selftest/1`、**32/32**、5,787 ms、28 功能 / 12 真机项，无失败与跳过 |
+| 二进制字符串回读 | `https://payoncepdf.com/*`、`https://*.gumroad.com/*`、`env.license_public_key`、`trial.started` 均 HIT。`allow-default-urls` / `allow-reveal-item-in-dir` 也 HIT，但那是 opener 插件自身的权限名常量定义，**不代表被授予**；以 §41.3 的生成 ACL 为准 |
+
+### 41.5 诚实边界
+
+- 本轮**没有**做独立隐私政策/服务条款页：需要运营主体全称、注册地、法律管辖、退款政策等真实信息，已列入 `DEPLOYMENT.md` 决策清单第 7 项，不编造。
+- Gumroad 商品、激活端点、生产 minisign 密钥、真实下载直链、代码签名/公证、macOS 产物、真机双平台端到端仍是 NO-GO，见 §40.7 与决策清单。
+- 安装包仍**无 EV/Authenticode 签名**，minisign 为开发密钥，当前包仅限内部验证，不得对外分发。
+- 本轮只重建 Windows NSIS。

@@ -194,14 +194,17 @@ export function checkLocalFiles() {
       .filter((l) => l && !l.startsWith('#'));
     const rewrites = rules.filter((l) => /\s200\s*$/.test(l));
     const redirects301 = rules.filter((l) => /\s301\s*$/.test(l));
-    const hasWww = redirects301.some((l) => l.includes('www.payoncepdf.com'));
+    // Pages 的 source 必须是路径；带 scheme 的域名级规则会被静默忽略（官方标注 ❌）。
+    const domainLevel = rules.filter((l) => /^https?:\/\//.test(l));
     const legacy = redirects301.some((l) => l.includes('/index.en.html'))
       && redirects301.some((l) => l.includes('/zh/'));
-    add('_redirects 无循环 rewrite',
-      rewrites.length === 0 && redirects301.length >= 3 && hasWww && legacy,
+    add('_redirects 规则均可生效',
+      rewrites.length === 0 && redirects301.length >= 2 && domainLevel.length === 0 && legacy,
       rewrites.length
         ? `含 ${rewrites.length} 条 200 rewrite，会与 Pages 的 .html→无扩展名 308 形成无限循环`
-        : `301 跳转 ${redirects301.length} 条 / 200 rewrite 0 条（干净路径由 Pages 原生提供）`);
+        : domainLevel.length
+          ? `含 ${domainLevel.length} 条域名级规则，Pages 不支持会静默失效；www 请用 Redirect Rules`
+          : `301 跳转 ${redirects301.length} 条 / 域名级规则 0 条 / 200 rewrite 0 条（干净路径由 Pages 原生提供）`);
   }
 
   return { results, blockers, warnings, stats: { pages: PAGES.length, links: linkCount } };

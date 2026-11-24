@@ -14,6 +14,7 @@
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"FAQPage","mainEntity":[
 {"@type":"Question","name":"Are my files really never uploaded? Why should I believe it?","acceptedAnswer":{"@type":"Answer","text":"All processing is on-device. Only three enumerable network requests exist at runtime: one-time activation, the update check you choose to start, and OCR language packs you choose to install. File contents and filenames never go online."}},
+{"@type":"Question","name":"What does activation send? Are my files involved?","acceptedAnswer":{"@type":"Answer","text":"One-time activation sends only a SHA-256 hash of the device fingerprint (irreversible, with no file contents, filenames or document data) to verify the device allowance for a license; the service returns a signed offline activation token. No other device information is uploaded, and telemetry and logging are off by default."}},
 {"@type":"Question","name":"Can it reflow like Word, or convert to Word/Excel with high fidelity?","acceptedAnswer":{"@type":"Answer","text":"No. F19 is in-place replacement with no reflow. High-fidelity Word/Excel conversion and WYSIWYG editing are out of scope. F14 exports the text layer without preserving layout, tables or images."}},
 {"@type":"Question","name":"Do I need a subscription or a card? What about refunds?","acceptedAnswer":{"@type":"Answer","text":"No. The 7-day full trial needs no account and no credit card. $39 / ¥199 once, 12 months of 1.x updates, 7-day no-questions refund."}},
 {"@type":"Question","name":"What happens when the trial ends?","acceptedAnswer":{"@type":"Answer","text":"No file is deleted or modified; only export is paused. Users who have not bought see an in-app payment window and can buy once, then enter the activation key. Buyers who already activated switch to the lifetime buyout automatically at expiry, with no window."}}
@@ -58,6 +59,7 @@
     <div class="sec-head"><h2>Privacy and network</h2></div>
     <div class="faq">
       <div class="qa"><h3>Are my files really never uploaded? Why should I believe it?</h3><p>All processing is on-device. Only three enumerable network requests exist at runtime: one-time activation, the update check you choose to start, and OCR language packs you choose to install. File contents and filenames never go online. The site provides packet-capture self-check steps for Windows and macOS so you can verify it — we avoid the inaccurate "zero network requests" claim.</p></div>
+      <div class="qa"><h3>What does activation send? Are my files involved?</h3><p>One-time activation sends only a SHA-256 hash of the device fingerprint to the activation service &mdash; irreversible, with no file contents, filenames or document data &mdash; to verify the device allowance for a license. The service returns a signed offline activation token. No other device information is uploaded, and telemetry and logging are off by default. The update check you start and the OCR language packs you install only download data; they never upload local files.</p></div>
       <div class="qa"><h3>Does it work offline?</h3><p>Yes. Apart from first-time activation, a manually started update check, and installing OCR language packs, core editing is fully offline. Merging, compressing, annotating, in-place editing and document comparison all work with no network.</p></div>
     </div>
   </div>
@@ -113,7 +115,7 @@
       <a href="mailto:hello@payoncepdf.com">hello@payoncepdf.com</a>
     </div>
     <div class="legal">
-      <p><b>Privacy:</b> we don't collect emails automatically; reminder and trial requests are emails you send us, used only to reply; file contents and filenames are never uploaded. Only three enumerable network requests at runtime: one-time activation, the update check you start, and OCR language packs you install.</p>
+      <p><b>Privacy:</b> this site has no accounts, forms or mailing-list signup and does not harvest email addresses; when you email us for a trial or a release reminder, we see your address in that email and use it only to reply and send that reminder &mdash; no ads, no selling. File contents and filenames are never uploaded. There are only three enumerable network requests at runtime: one-time activation, the update check you start, and OCR language packs you install. One-time activation sends the activation service a SHA-256 hash of your device fingerprint (irreversible, containing no file content or filenames) to verify the device allowance. See the Privacy &amp; networking section above.</p>
       <p><b>Terms &amp; license:</b> one license covers up to 3 devices, 12 months of 1.x updates; 7-day full trial with no card, 7-day no-questions refund; 50% upgrade price for 2.x. The software is provided "as is"; explicit limitations are listed on this page.</p>
       <p>© 2026 PayOnce PDF. Pricing and features per this site.</p>
     </div>

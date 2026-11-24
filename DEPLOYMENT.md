@@ -107,7 +107,9 @@
 
 验证结果：`curl --resolve payoncepdf.com:443:104.21.41.85` **HTTP 200、`ssl_verify_result=0`**、`server: cloudflare`、CSP/HSTS 命中；独立网络通道取到完整中文首页；经系统代理 13 条路径全部 200（`.html` 308 到干净路径）；`npm run site:verify -- https://payoncepdf.com` **本地门禁 10/10 + 13 条 HTTP 路径 + 安全头，0 阻断**。
 
-> 状态口径：绑定后先 `initializing` → `pending`（约 30 秒，等待补 CNAME）→ 补完 CNAME 后 `verification_data` 转 `active` → 最终 `status = active` 且 `validation_data.status = active`（HTTP 证书打包完成，约数分钟）。**这段 pending 不影响访问**：站点在 verification 转 active 后就已经能正常返回 200。**只绑了根域**，`www.payoncepdf.com` 尚未添加（如需可再加一个自定义域 + 一条 CNAME，`_redirects` 已备好 www→主域 301）。
+> 状态口径：绑定后先 `initializing` → `pending`（约 30 秒，等待补 CNAME）→ 补完 CNAME 后 `verification_data` 转 `active` → 最终 `status = active` 且 `validation_data.status = active`（HTTP 证书打包完成，约数分钟）。**这段 pending 不影响访问**：站点在 verification 转 active 后就已经能正常返回 200。
+>
+> **www 补充（同日稍后）**：又添加了 `www.payoncepdf.com` 自定义域 + proxied CNAME（`www → payoncepdf.pages.dev`），verification 已 active。但实测 `https://www.payoncepdf.com/` 返回 **200 而非 301** —— Pages `_redirects` 不支持域名级重定向（官方 "Domain-level redirects ❌"），那条规则是死规则，已删除。现在 www 作为镜像提供内容，靠 8 页 canonical 归一；严格 301 属于待授权项（清单第 11 项）。
 
 ## Wrangler 认证模式（API Token 与 OAuth 互斥）
 
@@ -162,6 +164,31 @@
 - 本地普通静态服务器不解析 `_redirects`，干净路径 404 记 **WARN** 不阻断；用 `scripts/serve-cloudflare-site.py` 起预览可全通过。
 - `tests/site-contract.test.mjs` 已并入 `npm test`，因此 CI 的 `quality` job 会在任何构建/制品之前守住官网结构；同时锁住「部署脚本默认不部署、不得自动执行 login」这条安全边界。
 
-## 仍属外部依赖（代码层无法单独完成）
+## 已收口（本轮不再列为待办）
 
-真实激活端点与生产激活服务、生产 minisign 密钥与 update manifest、Gumroad 商品与结账链接、真实下载直链、macOS 双架构产物、隐私政策与服务条款、安装包代码签名与公证、真机双平台端到端验收。`www.payoncepdf.com` 自定义域可选未绑。**自定义域 DNS / 证书 / 官网部署已完成**，不再属于待办。当前状态见 `docs/test-report.md` §40 与上线前 CodeReview 报告。
+- 官网部署、域名 NS 接入、`payoncepdf.com` 自定义域绑定、Universal SSL、CSP/HSTS、干净路径与旧链接 301 —— 全部完成并线上验收通过。
+- 隐私口径的事实披露（设备指纹 SHA-256 哈希、邮箱用途边界、三类网络请求）已在中英 8 页 footer 与帮助页 FAQ/JSON-LD 补齐。
+- Tauri `opener` 权限已从「任意 URL」收紧为显式 allow-list。
+- **发现并清掉一条死规则**：Pages 官方文档明确标注 `_redirects` 不支持域名级重定向，原 `https://www.payoncepdf.com/* → https://payoncepdf.com/:splat 301` 从未生效（线上实测 www 返回 200）。已删除该规则，并加门禁禁止再出现域名级 source。`www.payoncepdf.com` 已绑定可访问，8 页 canonical 全部指向主域，由 canonical 归一；严格 301 需 Cloudflare Redirect Rules，见下方决策清单第 11 项。
+
+## 剩余上线决策清单（必须由用户本人提供信息或操作，代码层无法代做）
+
+> 下表刻意区分「需要你给的**事实**」与「我能接着做的**代码工作**」。凡是涉及真实商业主体、账号、密钥、证书的信息，我不会编造或用占位符冒充上线。
+
+| # | 项 | 现状 | 需要你提供 / 操作 | 信息齐备后我可接着做 |
+| --- | --- | --- | --- | --- |
+| 1 | Gumroad 商品与结账链接 | 中英价格页按钮为占位（`aria-disabled`），客户端 `PAYMENT_URL` 指向价格页 | 创建商品、给出结账直链与商品价格/币种策略、退款期限与通道 | 替换 8 页按钮与 `PAYMENT_URL`，移除占位标记，补契约测试 |
+| 2 | 生产激活服务 `/api/activate` | 仅本地 mock；客户端默认地址为占位域名 | 决定服务形态（建议 Cloudflare Worker + D1/KV 持久化设备台账）、提供 Gumroad license key 校验方式、保管生产 Ed25519 私钥 | 实现服务骨架、订单校验、每把 key 最多 3 台的持久化台账、换机/解绑流程，并把端点固化进发行包 |
+| 3 | 更新包签名与 update manifest | 开发 minisign 密钥，端点占位 | 生成并保管生产 minisign 密钥对、提供 update endpoint | 轮换公钥（需重新编译）、接入 manifest、CI 注入生产密钥 |
+| 4 | 真实下载直链 | 官网用 `mailto:` 登记发放 | 选择托管（GitHub Releases / R2）并确认**先完成代码签名** | 替换下载页 CTA、写入真实 SHA-256 与校验说明 |
+| 5 | 代码签名 / 公证 | 报告标注「办理中」 | EV/Authenticode 证书、Apple Developer ID 与公证账号 | 接入签名脚本与 CI、验证签名链 |
+| 6 | macOS 双架构产物 | 官网承诺双平台，实际无 macOS 包 | macOS 构建机或 CI runner、Apple 账号 | 产出 arm64/x64/universal dmg，或先修正官网平台口径 |
+| 7 | 独立隐私政策 / 服务条款页 | 只有 footer 事实说明，无独立页 | **运营主体全称与注册地、联系方式、法律管辖、退款政策、数据留存期限** | 生成中英独立页并接入导航/footer，同步契约测试 |
+| 8 | `hello@payoncepdf.com` 邮箱 | 域名 MX 未配置 | 开通邮箱服务并添加 MX/TXT（改 NS 后必须在 Cloudflare DNS 侧加） | 验证收发，替换所有 `mailto:` 占位 |
+| 9 | 真机双平台端到端 | 文档标注「真机未验」 | Windows / macOS 实机、抓包工具 | 更新 `docs/real-device-test-plan.md` 结果，跑安装态 OCR、试用到期弹窗、三类请求抓包 |
+| 10 | Git 集成自动部署门禁 | 当前走 `npm run site:deploy`（CLI），**未启用** Git webhook | 若改用 Git 集成，需在 Cloudflare 侧关闭「推 main 自动部署」或改为门禁后触发 | 调整 workflow 触发条件并复验 |
+| 11 | `www` → 主域严格 301 | www 已绑定可访问但返回 **200**；靠 8 页 canonical 归一，不是 301 | Cloudflare Dashboard → Rules → Redirect Rules 建一条 `http.host eq "www.payoncepdf.com"` → 301；**或**给现有 API Token 增加 `Zone Rulesets:Edit`（本次调用该 API 返回 403，我不会擅自改你的 Token 权限） | 我复验 301 与 canonical 一致，并更新门禁断言 |
+
+**优先级建议**：① 先定 7 的运营主体信息（这是唯一会阻塞法务页、且只有你知道的事实）→ ② 配置 8 的邮箱（否则所有 `mailto:` 都是无效入口）→ ③ 1/2 的 Gumroad 与激活服务必须一起设计（激活服务要校验订单）→ ④ 5/6 决定安装包能否对外分发 → ⑤ 4 在签名完成后才有意义。
+
+当前状态另见 `docs/test-report.md` §40 与上线前 CodeReview 报告。

@@ -8,8 +8,14 @@
 # 页面内链接直连 .html 是为了兼容本地普通静态服务器；线上点击后 308 到干净路径，
 # 属于预期行为，canonical 也已指向干净 URL。
 
-# www → 主域（统一到 payoncepdf.com，避免重复内容）
-https://www.payoncepdf.com/*  https://payoncepdf.com/:splat  301
+# 域名级重定向（www → 主域）**不能写在这里**：Cloudflare Pages 的 `_redirects`
+# source 必须是路径，官方文档明确标注 "Domain-level redirects ❌"。
+# 原先这条是死规则，2026-11-24 线上实测 www 返回 200 而非 301：
+#   https://www.payoncepdf.com/*  https://payoncepdf.com/:splat  301
+# 现已删除。www.payoncepdf.com 作为同一 Pages 项目的自定义域提供内容，
+# 8 页 canonical 全部指向 https://payoncepdf.com/，由 canonical 归一权重。
+# 若以后需要严格 301，须在 Cloudflare Dashboard 配置 Redirect Rules
+# （http_request_dynamic_redirect phase），或给 API Token 增加 Rulesets 权限。
 
 # 旧路径兼容：单页时代的 index.en.html 与 /zh/ 入口，避免老链接 404
 /index.en.html  /en/  301

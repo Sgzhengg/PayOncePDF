@@ -85,14 +85,14 @@ npx wrangler pages deploy . --project-name payoncepdf --branch main
 
 ## 4. 绑定自定义域名 payoncepdf.com（已完成，保留复核步骤）
 
-**2026-11-24 已完成**：阿里云万网权威 NS 已改为 `elinore.ns.cloudflare.com` / `jaxson.ns.cloudflare.com`；Pages 项目已绑定 `payoncepdf.com`；根域 CNAME `payoncepdf.com → payoncepdf.pages.dev`（proxied，CNAME flattening，无需 A 记录）已生效；Universal SSL 签发，https://payoncepdf.com/ 返回 200。
+**2026-11-24 已完成**：阿里云万网权威 NS 已改为 `elinore.ns.cloudflare.com` / `jaxson.ns.cloudflare.com`；Pages 项目已绑定 `payoncepdf.com` 与 `www.payoncepdf.com`；根域 CNAME `payoncepdf.com → payoncepdf.pages.dev`（proxied，CNAME flattening，无需 A 记录）与 www CNAME 均已生效；Universal SSL 签发，两个域名均返回 200。
 
 若换域名或需要复核，Dashboard 路径与要点：
 
 1. 阿里云域名控制台把权威 NS 改为 Cloudflare 分配的两个 NS（逐步清单见根目录 `DEPLOYMENT.md`「万网修改 DNS 服务器」）。**域名控制权操作必须由用户本人完成**。
 2. Pages 项目 → **Settings / Custom domains** → **Set up a domain** → 填 `payoncepdf.com`。
 3. 通过 Dashboard 流程且 zone 已接入时，Cloudflare 会自动补 CNAME 并签发证书；**若用 API 绑域则需手动补 CNAME**（本次实测 `verification_data: CNAME record not set`），目标值 `payoncepdf.pages.dev`。
-4. `www` 已在 `_redirects` 做 301 跳主域；如需 `www.payoncepdf.com` 也能打开，需再添加一个自定义域并补一条 CNAME（**当前未添加**）。
+4. `www.payoncepdf.com` 已作为同一项目的自定义域添加，并补了 CNAME `www → payoncepdf.pages.dev`。**注意**：Pages `_redirects` 不支持域名级重定向（官方标注 ❌），原先写的 `https://www.payoncepdf.com/* → 主域 301` 是死规则（线上实测 www 返回 200），已删除；现在靠 8 页 canonical 全部指向主域来归一。若要严格 301，须用 Cloudflare Dashboard 的 Redirect Rules（`http_request_dynamic_redirect`），见根目录 `DEPLOYMENT.md` 决策清单第 11 项。
 
 `npm run site:verify -- https://payoncepdf.com` 可对自定义域做逐页验收。部署脚本 `scripts/deploy-cloudflare-site.mjs` **不绑定自定义域、不修改 DNS**；本次绑定是独立的一次性 API 操作。
 

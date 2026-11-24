@@ -9,7 +9,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "node --test tests/rename-contract.test.mjs tests/selection-geometry.test.mjs tests/defect-regression.test.mjs tests/error-detail.test.mjs tests/trial-paywall.test.mjs tests/selfcheck-contract.test.mjs tests/site-contract.test.mjs",
+    "test": "node --test tests/rename-contract.test.mjs tests/selection-geometry.test.mjs tests/defect-regression.test.mjs tests/error-detail.test.mjs tests/trial-paywall.test.mjs tests/selfcheck-contract.test.mjs tests/site-contract.test.mjs tests/opener-contract.test.mjs",
     "bundle:rename": "node scripts/rename-bundles.mjs",
     "site:check": "node scripts/deploy-cloudflare-site.mjs --check",
     "site:deploy": "node scripts/deploy-cloudflare-site.mjs --deploy",
