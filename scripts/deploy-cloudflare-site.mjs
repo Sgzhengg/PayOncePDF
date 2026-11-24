@@ -23,8 +23,9 @@
  *   B. 未设置该变量 → OAuth，由你本人执行 npx wrangler login 浏览器授权。
  *   脚本只读检测模式，绝不打印 Token 内容，也不会 unset / 覆盖它。
  *
- * 前置条件（仅域名接入仍待用户操作）：
- *   域名 payoncepdf.com 的 NS 指向 Cloudflare（阿里云万网控制台操作）。
+ * 域名接入现状（2026-11-24）：`payoncepdf.com` 的权威 NS 已指向 Cloudflare，
+ *   Pages 自定义域已绑定并可访问。换域名时才需重做 Add a site / 改注册商 NS /
+ *   绑自定义域；这些操作仍不在本脚本范围内，详见 DEPLOYMENT.md。
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -144,8 +145,8 @@ function printNextSteps(w, opts, auth) {
   console.log(`     → 实际执行：${w.cmd} ${[...w.prefix, 'pages', 'deploy', '.', '--project-name', opts.project, '--branch', opts.branch].join(' ')}`);
   console.log('     （工作目录 site-cloudflare/，首次部署会返回 *.pages.dev 地址）');
   console.log('  3. node scripts/verify-cloudflare-site.mjs https://<项目名>.pages.dev');
-  console.log('  4. Cloudflare Pages → Settings → Domains 绑定 payoncepdf.com；');
-  console.log('     阿里云万网把域名 NS 改为 Cloudflare 分配的两个 NS，等待 Universal SSL 变 Active。');
+  console.log('  4. 自定义域 payoncepdf.com 已于 2026-11-24 绑定，https://payoncepdf.com/ 可直接访问；');
+  console.log('     换域名时才需重做 Add a site / 改注册商 NS / 绑域，步骤见 DEPLOYMENT.md。');
   console.log('\n提示：本脚本不绑定自定义域、不修改 DNS、不修改用户级环境变量、不触碰凭据。');
 }
 
@@ -250,8 +251,8 @@ function main() {
   }
 
   console.log('\n=> 部署命令执行完成。请从上方 wrangler 输出里记下 *.pages.dev 地址，然后：');
-  console.log('   node scripts/verify-cloudflare-site.mjs https://<项目名>.pages.dev');
-  console.log('   验收通过后，再在 Pages → Domains 绑定 payoncepdf.com，并在阿里云把 NS 指向 Cloudflare。');
+  console.log('   node scripts/verify-cloudflare-site.mjs https://payoncepdf.com');
+  console.log('   自定义域 payoncepdf.com 已绑定，无需重复绑定或修改 NS；换域名时见 DEPLOYMENT.md。');
 }
 
 main();

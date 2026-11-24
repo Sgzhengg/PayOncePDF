@@ -22,24 +22,29 @@
 | 项 | 实测结果 | 依据 |
 | --- | --- | --- |
 | 域名注册 | **已注册**，阿里云万网 / HiChina（IANA 1599），2026-11-16 注册、2027-11-16 到期，状态 `active` | Verisign RDAP `payoncepdf.com` |
-| 权威 NS | `dns19.hichina.com` / `dns20.hichina.com`（阿里云默认，**未接入 Cloudflare**） | RDAP nameservers + 本机 `nslookup -type=NS` |
-| A / AAAA / CNAME | 向权威 NS 查询仅返回 SOA 否定应答，**没有任何指向网站的记录** | `nslookup -type=A/-type=CNAME payoncepdf.com dns19.hichina.com` |
-| Cloudflare Pages 项目 | **已创建并部署**（2026-11-24），固定地址 **https://payoncepdf.pages.dev/**；同一账号下另有 3 个项目（`zhuazhua` / `git-relay` / `demoforge-video`） | `wrangler pages project create` + `pages deploy`，详见「首次部署记录」 |
-| Wrangler 认证 | 本机用户级 `CLOUDFLARE_API_TOKEN` 有效，`whoami` 返回单账号（邮箱与 Account ID 已脱敏，仅本地可见）。Token 认证与 OAuth 互斥 | `wrangler whoami` |
-| 结论 | **站点已在 Pages 上线并可访问**；但自定义域仍无 DNS 记录且未绑定，浏览器输 `payoncepdf.com` 必然打不开 | 已排除「只有本机代理异常」的可能 |
+| 权威 NS | **已切换为 `elinore.ns.cloudflare.com` / `jaxson.ns.cloudflare.com`**（原 `dns19/dns20.hichina.com` 已替换） | `nslookup -type=NS payoncepdf.com 8.8.8.8` 返回这两个；Cloudflare API `zone.status = active`、`original_name_servers` 为万网旧值 |
+| A / CNAME | 根域 CNAME `payoncepdf.com → payoncepdf.pages.dev`（proxied，CNAME flattening）；公网返回 A `104.21.41.85` / `172.67.163.67` | Cloudflare DNS Records API + `nslookup -type=A payoncepdf.com 8.8.8.8` |
+| Cloudflare Pages 项目 | **已创建并部署**（2026-11-24），固定地址 **https://payoncepdf.pages.dev/**；自定义域 `payoncepdf.com` **已绑定并可访问** | `wrangler pages project create` + `pages deploy`；Pages Domains API，详见「自定义域绑定记录」 |
+| Wrangler 认证 | 本机用户级 `CLOUDFLARE_API_TOKEN` 有效，`whoami` 返回单账号（邮箱与 Account ID 已脱敏）。Token 认证与 OAuth 互斥；**读/写权限均已实证**（建项目、部署、绑域、写 DNS 记录都成功） | `wrangler whoami`、`pages project list`、Cloudflare API |
+| 结论 | **https://payoncepdf.com/ 已可访问**：首页 HTTP 200、TLS 验签通过、`server: cloudflare`、13 条路径逐页验收全通过 | 独立网络通道 + 系统代理 curl + `npm run site:verify -- https://payoncepdf.com` |
+
+> **缓存滞后说明**：本机默认 DNS 是链路本地 IPv6（`fe80::…`），以及 Verisign RDAP 快照，在切换后仍会短暂返回旧的 `dns*.hichina.com` NS，导致**不走系统代理的直连**偶尔报 `Could not resolve host`。这不是配置错误：向 8.8.8.8 查询、Cloudflare API、工具侧独立网络、系统代理通道均已确认新 NS 与站点可用。旧缓存按 TTL 自动过期；`Clear-DnsClientCache` 可清本机存根缓存，上游缓存需等 TTL。
 
 **`npx wrangler login` 报错的真实原因**：本机 `HKCU:\Environment` 设置了用户级 `CLOUDFLARE_API_TOKEN`，Wrangler 检测到后强制走 Token 认证，于是拒绝 `X [ERROR] You are logged in with an API Token. Unset the CLOUDFLARE_API_TOKEN in the environment to log in via OAuth.`。**这不是故障，也不是没登录** —— `whoami` 与 `pages project list` 均已成功。详见下方「Wrangler 认证模式」。
 
 注意域名拼写是 **`payoncepdf.com`**（pdf 在前）；`payoncepfd.com` 是早期需求里的笔误，从未注册或使用。
 
-### 让 `payoncepdf.com` 真正可访问的剩余两步（第 1 步已完成）
+### 让 `payoncepdf.com` 真正可访问的三步（2026-11-24 全部完成）
 
-**已完成**：Pages 项目 `payoncepdf` 已创建并部署，固定地址 **https://payoncepdf.pages.dev/**，中英 8 页线上逐页验收通过（见「首次部署记录」）。现在可以先打开这个地址看官网，不必等自定义域生效。
+| 步 | 操作 | 状态 |
+| --- | --- | --- |
+| 1 | 创建 Pages 项目并部署 `site-cloudflare/` | ✅ 完成，固定地址 https://payoncepdf.pages.dev/ |
+| 2 | Cloudflare **Add a site** → 阿里云万网把权威 NS 改成两个 `*.ns.cloudflare.com` | ✅ 完成（用户在阿里云控制台操作，截图确认「DNS服务器 = elinore.ns.cloudflare.com」；8.8.8.8 已返回两个新 NS，zone `active`） |
+| 3 | Pages 绑自定义域 `payoncepdf.com` + CNAME + Universal SSL | ✅ 完成，https://payoncepdf.com/ 逐页验收 13/13 通过 |
 
-1. **接入 Cloudflare**：Dashboard → *Add a site* → `payoncepdf.com`，拿到分配的两个 nameserver；到阿里云万网把该域名的 DNS 服务器改成这两个 NS，等待生效（10 分钟～数小时）。**逐步点击路径见下方「万网修改 DNS 服务器」**。
-2. **绑自定义域**：Pages → *Settings* → *Domains* → Add `payoncepdf.com`（可另加 `www.payoncepdf.com`，`_redirects` 已做 www→主域 301），等 Universal SSL 状态变 **Active**；根域用 CNAME flattening，**不要在阿里云手工填猜测的 A 记录**。
+逐步点击路径保留在下方「万网修改 DNS 服务器」，作为下次换域名或复核时的操作手册；绑定细节见「自定义域绑定记录」。
 
-后续改代码可用 `npm run site:deploy` 重新部署；或改用 Git 集成（仓库 `Sgzhengg/PayOncePDF` / 分支 `main`，Framework preset **None**、Build command **留空**、Build output directory **`site-cloudflare`**），但须按「上线前置」处理 webhook 绕过 CI 的问题。**Add a site、改阿里云 NS、绑自定义域**这些账号/域名控制权操作仍必须用户本人在控制台完成。
+后续改代码可用 `npm run site:deploy` 重新部署；或改用 Git 集成（仓库 `Sgzhengg/PayOncePDF` / 分支 `main`，Framework preset **None**、Build command **留空**、Build output directory **`site-cloudflare`**），但须按「上线前置」处理 webhook 绕过 CI 的问题。**Add a site 与改阿里云 NS 属于域名控制权操作，由用户本人完成**；第 3 步的绑定与 DNS 记录是在用户已授权的上线流程内、用其本机 `CLOUDFLARE_API_TOKEN` 经 Cloudflare API 完成的一次性操作，**并未并入部署脚本**（`scripts/deploy-cloudflare-site.mjs` 依旧不绑域、不改 DNS）。
 
 ### 万网修改 DNS 服务器（逐步可照做，2026-11-24 核对）
 
@@ -81,7 +86,28 @@
 | DNSSEC 已开启 | 先在阿里云「DNS 管理 → DNSSEC 设置」关闭（新买域名默认未开），否则切换后可能解析失败；需要时再在 Cloudflare 侧重开 |
 | 原有 MX / TXT 记录 | 改 NS 后阿里云云解析里的记录不再生效，须先在 Cloudflare **DNS → Records** 补上（邮箱类保持「仅 DNS / 灰云」）。本项目域名当前无任何网站记录，影响很小；若绑过企业邮箱务必检查 |
 
-**只有 C 验证通过后**，才做上面第 2 步：Pages → Settings → Domains → Add `payoncepdf.com`，等 Universal SSL **Active**。Cloudflare 会自动创建指向 Pages 的 CNAME，**不需要手工填 A 记录**。
+**C 验证已通过**（`nslookup -type=NS payoncepdf.com 8.8.8.8` 返回 `elinore.ns.cloudflare.com` / `jaxson.ns.cloudflare.com`，Cloudflare zone `active`），随后完成绑定，详见下一节。
+
+## 自定义域绑定记录（2026-11-24）
+
+用户发来阿里云「基本信息」页截图：注册信息里 **DNS服务器 = `elinore.ns.cloudflare.com`**，说明 NS 修改已提交。交叉验证：
+
+| 检查 | 结果 |
+| --- | --- |
+| `nslookup -type=NS payoncepdf.com 8.8.8.8` | `elinore.ns.cloudflare.com` + `jaxson.ns.cloudflare.com`（新 NS 已全局生效） |
+| Cloudflare API `zones?name=payoncepdf.com` | `status = active`、`type = full`、Free 计划、`original_name_servers = dns19/dns20.hichina.com` |
+| Verisign RDAP / 本机 `fe80::` DNS | 仍短暂返回旧万网 NS —— **缓存滞后，不是配置失败**（RDAP `last update` 有延迟、本机上游 DNS 有 TTL） |
+| Pages Domains（绑定前） | 只有 `payoncepdf.pages.dev`，故域名无任何网站记录，浏览器必然打不开 |
+
+绑定过程（用本机已验证的 `CLOUDFLARE_API_TOKEN`，**不改动阿里云 NS、不触碰其他 Pages 项目**）：
+
+1. `POST /accounts/{id}/pages/projects/payoncepdf/domains`，body `{"name":"payoncepdf.com"}` → 返回 `status=initializing`、`certificate_authority=google`、`validation.method=http`，domain id `c1fc6068-…`。
+2. 约 30 秒后转 `pending`，但 `verification_data.error_message = "CNAME record not set"`，DNS Records 为空 —— **API 绑域不会自动补 CNAME**（官方 Dashboard 流程在 zone 已接入时会自动创建，API 路径未触发）。
+3. 按官方文档补建根域 CNAME：`payoncepdf.com → payoncepdf.pages.dev`，`proxied=true`、`ttl=1`（record id `9520210393…`）。随即 8.8.8.8 返回 CNAME flattening 后的 A `104.21.41.85` / `172.67.163.67`，`verification_data.status` 转 `active`。
+
+验证结果：`curl --resolve payoncepdf.com:443:104.21.41.85` **HTTP 200、`ssl_verify_result=0`**、`server: cloudflare`、CSP/HSTS 命中；独立网络通道取到完整中文首页；经系统代理 13 条路径全部 200（`.html` 308 到干净路径）；`npm run site:verify -- https://payoncepdf.com` **本地门禁 10/10 + 13 条 HTTP 路径 + 安全头，0 阻断**。
+
+> 状态口径：绑定后先 `initializing` → `pending`（约 30 秒，等待补 CNAME）→ 补完 CNAME 后 `verification_data` 转 `active` → 最终 `status = active` 且 `validation_data.status = active`（HTTP 证书打包完成，约数分钟）。**这段 pending 不影响访问**：站点在 verification 转 active 后就已经能正常返回 200。**只绑了根域**，`www.payoncepdf.com` 尚未添加（如需可再加一个自定义域 + 一条 CNAME，`_redirects` 已备好 www→主域 301）。
 
 ## Wrangler 认证模式（API Token 与 OAuth 互斥）
 
@@ -93,7 +119,7 @@
 
 - `wrangler whoami` 是唯一精确判定方式；只读检测脚本 `scripts/deploy-cloudflare-site.mjs` 的 `detectAuth()` 会报告当前模式，**绝不打印 Token 内容**。
 - `pages deploy` 没有 `--account-id` 参数；账号 ID 通过 `CLOUDFLARE_ACCOUNT_ID` 环境变量提供，脚本支持 `--account-id <ID>`（仅注入 wrangler 子进程，不改用户环境变量）。本机未设置该变量时由 Wrangler 从单账号凭据自动推断。
-- Token 权限在 Dashboard → Profile → API Tokens 查看。`whoami` 曾提示缺少 `User->User Details->Read`（读不到邮箱），但 `pages project list` 成功，说明账号/Pages 读权限具备；**写权限（`Cloudflare Pages:Edit`）需实际部署才能确认**。
+- Token 权限在 Dashboard → Profile → API Tokens 查看。`whoami` 曾提示缺少 `User->User Details->Read`（读不到邮箱），但 `pages project list` 成功；后续 `pages project create`、`pages deploy`、Pages Domains 写入、DNS Records 写入均成功，**`Cloudflare Pages:Edit` 与 `DNS:Edit` 写权限已实证具备**。
 - 切回 OAuth：仅当前窗口清除（cmd `set CLOUDFLARE_API_TOKEN=` / PowerShell `Remove-Item Env:CLOUDFLARE_API_TOKEN`），或在「系统属性 → 环境变量 → 用户变量」删除该条目。脚本不会替你 unset、覆盖或写入凭据；该变量可能服务于本机其他项目，删除前请自行确认。
 
 ## 首次部署记录（2026-11-24，站点已上线）
@@ -107,7 +133,7 @@
 | 上传内容 | 11 个静态文件 + `_headers` + `_redirects`（第二次为增量，仅传 1 个变更文件） |
 | 线上验收 | `npm run site:verify -- https://payoncepdf.pages.dev`：本地门禁 10/10、13 条 HTTP 路径全可达、CSP/HSTS 命中，**0 阻断** |
 | 交叉验证 | 独立网络通道取到完整中文首页（标题、导航、`$39 / ¥199`、7 天试用文案）；`/download` `/pricing` `/help` `/en/` `/en/pricing` 均 200；旧链接 `/index.en.html`、`/zh/` 均 301 |
-| 自定义域 | **未绑定**：`payoncepdf.com` 仍无 A/CNAME 记录、DNS 未接入 Cloudflare，浏览器直接输该域名仍打不开 |
+| 自定义域 | 首次部署时**未绑定**；同日稍后已完成绑定并逐页验收，见「自定义域绑定记录」。最终对外地址 **https://payoncepdf.com/** |
 
 ### 上线时抓到并修复的真实阻断项：308 无限重定向循环
 
@@ -138,4 +164,4 @@
 
 ## 仍属外部依赖（代码层无法单独完成）
 
-真实激活端点与生产激活服务、生产 minisign 密钥与 update manifest、Gumroad 商品与结账链接、自定义域 DNS/证书、macOS 双架构产物、隐私政策与服务条款、安装包代码签名与公证。当前状态见 `docs/test-report.md` §40 与上线前 CodeReview 报告。
+真实激活端点与生产激活服务、生产 minisign 密钥与 update manifest、Gumroad 商品与结账链接、真实下载直链、macOS 双架构产物、隐私政策与服务条款、安装包代码签名与公证、真机双平台端到端验收。`www.payoncepdf.com` 自定义域可选未绑。**自定义域 DNS / 证书 / 官网部署已完成**，不再属于待办。当前状态见 `docs/test-report.md` §40 与上线前 CodeReview 报告。
