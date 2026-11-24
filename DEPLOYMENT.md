@@ -46,6 +46,19 @@ Cloudflare 账号授权与阿里云域名 DNS 控制权都属于用户本人；�
 2. Windows `build` job 在供给 sidecar 后、`tauri build` 前会跑 `cargo test --lib`，打包后跑「发行包公钥收录复核」，两者都必须绿；
 3. **Cloudflare 的 Git 集成是独立 webhook，不受上述 CI 约束**。上线前需在 Cloudflare 侧关闭「推 main 即自动部署」，或把部署动作改为由通过门禁的 workflow 触发 / 人工确认，否则任何回归仍可直达生产。
 
+## 一键部署脚本与验收（2026-11-24 新增）
+
+| 命令 | 作用 | 是否产生写操作 |
+| --- | --- | --- |
+| `npm run site:check` | 部署前门禁 + 环境状态报告 | ❌ 否，纯本地只读 |
+| `npm run site:deploy` | 门禁通过后执行 `wrangler pages deploy` | ✅ 是，向 Cloudflare Pages 上传站点文件 |
+| `npm run site:verify -- <URL>` | 上线后逐页验收（也可不带 URL 只查本地文件） | ❌ 否，只读 HTTP GET |
+
+- `scripts/deploy-cloudflare-site.mjs`：默认 `--check`，只有显式 `--deploy` 才调用 Wrangler。执行前强制跑 `scripts/verify-cloudflare-site.mjs` 的本地门禁，失败即中止。未登录时只打印 `npx wrangler login` 指引并退出，**不打开浏览器、不自动执行 login、不读写凭据文件、不绑定自定义域、不修改 DNS**。可用 `--project` / `--branch` 覆盖默认 `payoncepdf` / `main`。
+- `scripts/verify-cloudflare-site.mjs`：本地门禁覆盖 13 个必需文件、8 页标签配平、导航「4 项 / 1 active」、180 条站内链接（含干净路径残留与死链）、canonical/hreflang、`$39 / ¥199` 单一标价、Gumroad 占位与零假直链、`_headers` 的 CSP/HSTS、`_redirects` 规则、部署目录无 `.py`/`.pyc`/`__pycache__`。带 URL 时额外探测 8 个 `.html` + 5 条干净路径共 13 条，校验 200 / `<title>` / 产品标识；线上再检查 CSP 与 HSTS 响应头。
+- 本地普通静态服务器不解析 `_redirects`，干净路径 404 记 **WARN** 不阻断；用 `scripts/serve-cloudflare-site.py` 起预览可全通过。
+- `tests/site-contract.test.mjs` 已并入 `npm test`，因此 CI 的 `quality` job 会在任何构建/制品之前守住官网结构；同时锁住「部署脚本默认不部署、不得自动执行 login」这条安全边界。
+
 ## 仍属外部依赖（代码层无法单独完成）
 
 真实激活端点与生产激活服务、生产 minisign 密钥与 update manifest、Gumroad 商品与结账链接、自定义域 DNS/证书、macOS 双架构产物、隐私政策与服务条款、安装包代码签名与公证。当前状态见 `docs/test-report.md` §40 与上线前 CodeReview 报告。

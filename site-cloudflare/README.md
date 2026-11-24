@@ -49,14 +49,23 @@
 
 ### 方式 A：wrangler CLI（本地一键，最快）
 
+仓库提供零依赖脚本，**默认只做检查，加 `--deploy` 才真正上线**：
+
 ```bash
-npx wrangler login                       # 浏览器授权 Cloudflare 账号
+npm run site:check       # 8 页结构 / 180 条链接 / 价格 / 占位 / 目录卫生 + Wrangler 登录状态
+npx wrangler login       # 浏览器授权 Cloudflare 账号（必须你本人操作）
+npm run site:deploy      # 门禁通过后执行 wrangler pages deploy
+npm run site:verify -- https://<项目名>.pages.dev    # 上线后逐页验收
+```
+
+`site:deploy` 不会自动登录、不会绑定自定义域、不会修改 DNS、不会读写 Cloudflare 凭据文件。等价手工命令（工作目录为本目录）：
+
+```bash
 npx wrangler pages dev .                 # 本地预览（可选）
-cd E:/PayOncePDF/site-cloudflare
 npx wrangler pages deploy . --project-name payoncepdf --branch main
 ```
 
-首次部署会创建 Pages 项目并返回 `*.pages.dev` 预览地址；后续同名部署即更新。
+首次部署会创建 Pages 项目并返回 `*.pages.dev` 预览地址；后续同名部署即更新。脚本细节见根目录 `DEPLOYMENT.md`。
 
 ### 方式 B：GitHub 集成（推荐，改代码自动上线）
 
