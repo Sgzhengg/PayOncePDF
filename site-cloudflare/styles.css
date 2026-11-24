@@ -173,3 +173,19 @@ footer{border-top:1px solid var(--line);padding:28px 0;color:var(--dim);font-siz
 .legal{margin-top:14px;padding-top:14px;border-top:1px solid var(--line);font-size:12px;color:#7d879c;line-height:1.8}
 .legal p{margin:0 0 8px}
 .legal b{color:var(--dim)}
+
+/* 法务长文页（privacy / terms，中英各一份） */
+.doc{max-width:820px;margin:0 auto;padding-bottom:20px}
+.doc h2{font-size:19px;line-height:1.4;margin:30px 0 10px;font-weight:650;color:var(--txt)}
+.doc p,.doc li{color:var(--dim);font-size:14.5px;line-height:1.85}
+.doc p{margin:0 0 12px}
+.doc ul{padding-left:22px;margin:6px 0 16px}
+.doc li{margin:5px 0}
+.doc b{color:var(--txt)}
+.doc a{color:var(--pri);border-bottom:1px dashed rgba(94,234,212,.5)}
+.doc code{color:var(--pri);font-size:13px}
+.doc .note{border:1px solid rgba(94,234,212,.28);background:rgba(94,234,212,.06);border-radius:12px;padding:13px 17px;color:var(--dim);font-size:13px;line-height:1.75;margin-top:22px}
+.verify-result{white-space:pre-line;color:var(--pri);font-size:13px;line-height:1.7;min-height:1.7em}
+.doc input[type="file"]{color:var(--dim);font-size:13px;max-width:100%}
+.doc label{color:var(--txt);font-size:13.5px}
+@media(max-width:680px){.doc h2{font-size:17px}.doc p,.doc li{font-size:14px}}

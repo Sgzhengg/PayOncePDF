@@ -160,35 +160,60 @@
 | `npm run site:verify -- <URL>` | 上线后逐页验收（也可不带 URL 只查本地文件） | ❌ 否，只读 HTTP GET |
 
 - `scripts/deploy-cloudflare-site.mjs`：默认 `--check`，只有显式 `--deploy` 才调用 Wrangler。执行前强制跑 `scripts/verify-cloudflare-site.mjs` 的本地门禁，失败即中止；`--deploy` 先跑 `whoami` 精确验明认证状态，失败按当前模式给出 Token 权限排查或 `npx wrangler login` 指引。**不打开浏览器、不自动执行 login、不读写凭据文件、不 unset 或覆盖 `CLOUDFLARE_API_TOKEN`、不修改用户级环境变量、不绑定自定义域、不修改 DNS**。可用 `--project` / `--branch` / `--account-id` 覆盖默认值。
-- `scripts/verify-cloudflare-site.mjs`：本地门禁覆盖 13 个必需文件、8 页标签配平、导航「4 项 / 1 active」、180 条站内链接（含干净路径残留与死链）、canonical/hreflang、`$39 / ¥199` 单一标价、Gumroad 占位与零假直链、`_headers` 的 CSP/HSTS、`_redirects` 规则、部署目录无 `.py`/`.pyc`/`__pycache__`。带 URL 时额外探测 8 个 `.html` + 5 条干净路径共 13 条，**跟随重定向**后校验终态 200 / `<title>` / 产品标识；Pages 的 `.html`→干净路径 308 属预期行为，重定向循环会明确报「疑似重定向循环」。线上再检查 CSP 与 HSTS 响应头。
+- `scripts/verify-cloudflare-site.mjs`：本地门禁覆盖 **18 个必需文件 / 12 页**标签配平、导航「4 项 / 1 active」、298 条站内链接（含干净路径残留与死链）、canonical/hreflang、`$39 / ¥199` 单一标价、Gumroad 占位与零假直链、`_headers` 的 CSP/HSTS、`_redirects` 规则、部署目录无 `.py`/`.pyc`/`__pycache__`，以及「法务页口径 / 安装包校验值与 README 一致 / 校验脚本离线」。带 URL 时额外探测 12 个 `.html` + 9 条干净路径共 **21 条**，**跟随重定向**后校验终态 200 / `<title>` / 产品标识；Pages 的 `.html`→干净路径 308 属预期行为，重定向循环会明确报「疑似重定向循环」。线上再检查 CSP 与 HSTS 响应头。
 - 本地普通静态服务器不解析 `_redirects`，干净路径 404 记 **WARN** 不阻断；用 `scripts/serve-cloudflare-site.py` 起预览可全通过。
+- **本机网络注意（2026-11-24 实测）**：本机设了系统代理（`HTTPS_PROXY`），Node 22 的 `fetch` 默认直连，直接跑 `npm run site:verify -- https://payoncepdf.com` 会把 21 条路径全部报 `fetch failed`，这是本机链路问题、**不是站点故障**（同时用 `curl` 走代理全部 200）。正确命令是 `NODE_USE_ENV_PROXY=1 npm run site:verify -- https://payoncepdf.com`（Node 22.21+），验收脚本在 `fetch failed` 时会给出这条提示。`curl` 本身会读代理环境变量，无需额外设置。
 - `tests/site-contract.test.mjs` 已并入 `npm test`，因此 CI 的 `quality` job 会在任何构建/制品之前守住官网结构；同时锁住「部署脚本默认不部署、不得自动执行 login」这条安全边界。
 
 ## 已收口（本轮不再列为待办）
 
 - 官网部署、域名 NS 接入、`payoncepdf.com` 自定义域绑定、Universal SSL、CSP/HSTS、干净路径与旧链接 301 —— 全部完成并线上验收通过。
-- 隐私口径的事实披露（设备指纹 SHA-256 哈希、邮箱用途边界、三类网络请求）已在中英 8 页 footer 与帮助页 FAQ/JSON-LD 补齐。
+- 隐私口径的事实披露（设备指纹 SHA-256 哈希、邮箱用途边界、三类网络请求）已在中英 12 页 footer、帮助页 FAQ/JSON-LD 与独立隐私政策页补齐。
 - Tauri `opener` 权限已从「任意 URL」收紧为显式 allow-list。
-- **发现并清掉一条死规则**：Pages 官方文档明确标注 `_redirects` 不支持域名级重定向，原 `https://www.payoncepdf.com/* → https://payoncepdf.com/:splat 301` 从未生效（线上实测 www 返回 200）。已删除该规则，并加门禁禁止再出现域名级 source。`www.payoncepdf.com` 已绑定可访问，8 页 canonical 全部指向主域，由 canonical 归一；严格 301 需 Cloudflare Redirect Rules，见下方决策清单第 11 项。
+- **发现并清掉一条死规则**：Pages 官方文档明确标注 `_redirects` 不支持域名级重定向，原 `https://www.payoncepdf.com/* → https://payoncepdf.com/:splat 301` 从未生效（线上实测 www 返回 200）。已删除该规则，并加门禁禁止再出现域名级 source。`www.payoncepdf.com` 已绑定可访问，12 页 canonical 全部指向主域，由 canonical 归一；按 Grabber 先例，严格 301 已降级为非阻断，见下方决策清单第 11 项。
 
-## 剩余上线决策清单（必须由用户本人提供信息或操作，代码层无法代做）
+## 参考 Grabber / zhuazhua.video 的先例（2026-11-24）
 
-> 下表刻意区分「需要你给的**事实**」与「我能接着做的**代码工作**」。凡是涉及真实商业主体、账号、密钥、证书的信息，我不会编造或用占位符冒充上线。
+用户授权「关于你的建议，可以参考 Grabber 及官网的做法」后，对 `E:/grabber` 站点源码、
+线上 `https://zhuazhua.video/privacy` 与 `/terms`、以及桌面 `Grabber+Recast/` 的上线方案做了只读调研。
+结论：上一版清单里有 3 项被我判成「只有用户能给事实、代码层无法代做」，Grabber 已经给出可直接照做的解法。
 
-| # | 项 | 现状 | 需要你提供 / 操作 | 信息齐备后我可接着做 |
+| 先例 | Grabber 的实际做法 | 对 PayOncePDF 的影响 |
+| --- | --- | --- |
+| 运营主体 | 官网法务页只写品牌名 + 唯一邮箱 `hi@zhuazhua.video` + Gumroad 为 merchant of record；无公司全称 / 注册地 / 备案号（`docs/compliance-checklist.md` 把执照列为 P0 待办）；管辖条款写在 EULA「适用中华人民共和国法律、开发者所在地法院」 | 第 7 项不再是硬阻塞，法务页按同口径已上线 |
+| 邮箱 | Cloudflare **Email Routing** 免费转发到常用邮箱，不是自建邮局 | 第 8 项给出零成本具体做法 |
+| www | apex + www 一起绑到 Pages，`_redirects` 无任何域名级规则，仓库里也没有 Redirect Rules 配置；靠平台与 canonical 归一 | 第 11 项降级为非阻断，现状态与先例一致 |
+| 下载校验 | `download.html` 列版本号 / 体积 / 4 个 SHA-256，用浏览器 WebCrypto 本机比对、文件不上传，`content/hashes.json` 为单一事实源 | 第 4 项的代码部分已复刻（直链仍不伪造） |
+| 购买开关 | `content/stage.json` + `/buy/<plan>` 302 中间跳转 + Gumroad URL 走环境变量，内测态禁止出现购买直链 | 第 1/2 项写成 `docs/activation-service-plan.md` 设计稿 |
+| 真机测试 | 「现在必跑 / 只记录不判失败 / 开卖后补测」三分法 + 假失败清单 + 离线授权 5 步验证 | `docs/real-device-test-plan.md` §10 |
+
+**本次按先例实际落地**（均为纯代码 / 文档，未伪造任何外部账号状态）：
+
+- 中英 4 个独立法务页 `/privacy`、`/terms` 及其 `/en/` 镜像上线，12 页 footer 全站挂链接；口径只写品牌名、`hello@payoncepdf.com` 与 Gumroad 收款主体，并明确标注运营主体全称 / 注册地 / 数据留存期限尚未确定，**不编造**。
+- 下载页中英版新增「安装包校验值」区块：展示当前内部验证包真实体积 `31,719,938 B` 与 SHA-256 `8307c7b5…6d2d92`；`/verify-sha256.js` 用 WebCrypto 在本机计算，文件不上传、脚本无任何网络请求，兼容站点 CSP 的 `script-src 'self'`；页面明确写「未代码签名、未对外分发」。
+- 门禁从 13 文件 / 8 页扩到 **18 文件 / 12 页 / 298 条站内链接 / 21 条 HTTP 路径**；新增契约锁住「法务页不编造主体」「校验值与 README 一致」「校验脚本离线」。
+- 新增 `docs/activation-service-plan.md`（设计稿，未实现）；真机计划补 §10 三分法。
+
+## 剩余上线决策清单（按 Grabber 先例重新评估）
+
+> 仍区分「只有你能给的事实 / 操作」与「信息齐备后我能接着做的代码」。凡是涉及真实商业主体、账号、密钥、证书的信息，不会编造或用占位符冒充上线。
+
+| # | 项 | 现状（2026-11-24） | 参考 Grabber 后的结论 | 需要你提供 / 操作 |
 | --- | --- | --- | --- | --- |
-| 1 | Gumroad 商品与结账链接 | 中英价格页按钮为占位（`aria-disabled`），客户端 `PAYMENT_URL` 指向价格页 | 创建商品、给出结账直链与商品价格/币种策略、退款期限与通道 | 替换 8 页按钮与 `PAYMENT_URL`，移除占位标记，补契约测试 |
-| 2 | 生产激活服务 `/api/activate` | 仅本地 mock；客户端默认地址为占位域名 | 决定服务形态（建议 Cloudflare Worker + D1/KV 持久化设备台账）、提供 Gumroad license key 校验方式、保管生产 Ed25519 私钥 | 实现服务骨架、订单校验、每把 key 最多 3 台的持久化台账、换机/解绑流程，并把端点固化进发行包 |
-| 3 | 更新包签名与 update manifest | 开发 minisign 密钥，端点占位 | 生成并保管生产 minisign 密钥对、提供 update endpoint | 轮换公钥（需重新编译）、接入 manifest、CI 注入生产密钥 |
-| 4 | 真实下载直链 | 官网用 `mailto:` 登记发放 | 选择托管（GitHub Releases / R2）并确认**先完成代码签名** | 替换下载页 CTA、写入真实 SHA-256 与校验说明 |
-| 5 | 代码签名 / 公证 | 报告标注「办理中」 | EV/Authenticode 证书、Apple Developer ID 与公证账号 | 接入签名脚本与 CI、验证签名链 |
-| 6 | macOS 双架构产物 | 官网承诺双平台，实际无 macOS 包 | macOS 构建机或 CI runner、Apple 账号 | 产出 arm64/x64/universal dmg，或先修正官网平台口径 |
-| 7 | 独立隐私政策 / 服务条款页 | 只有 footer 事实说明，无独立页 | **运营主体全称与注册地、联系方式、法律管辖、退款政策、数据留存期限** | 生成中英独立页并接入导航/footer，同步契约测试 |
-| 8 | `hello@payoncepdf.com` 邮箱 | 域名 MX 未配置 | 开通邮箱服务并添加 MX/TXT（改 NS 后必须在 Cloudflare DNS 侧加） | 验证收发，替换所有 `mailto:` 占位 |
-| 9 | 真机双平台端到端 | 文档标注「真机未验」 | Windows / macOS 实机、抓包工具 | 更新 `docs/real-device-test-plan.md` 结果，跑安装态 OCR、试用到期弹窗、三类请求抓包 |
-| 10 | Git 集成自动部署门禁 | 当前走 `npm run site:deploy`（CLI），**未启用** Git webhook | 若改用 Git 集成，需在 Cloudflare 侧关闭「推 main 自动部署」或改为门禁后触发 | 调整 workflow 触发条件并复验 |
-| 11 | `www` → 主域严格 301 | www 已绑定可访问但返回 **200**；靠 8 页 canonical 归一，不是 301 | Cloudflare Dashboard → Rules → Redirect Rules 建一条 `http.host eq "www.payoncepdf.com"` → 301；**或**给现有 API Token 增加 `Zone Rulesets:Edit`（本次调用该 API 返回 403，我不会擅自改你的 Token 权限） | 我复验 301 与 canonical 一致，并更新门禁断言 |
+| 1 | Gumroad 商品与结账链接 | 中英价格页按钮为占位（`aria-disabled`），客户端 `PAYMENT_URL` 指向价格页 | Grabber 用 `/buy/<plan>` 中间跳转 + `content/stage.json` 单一开关，开卖只需配 `GUMROAD_*_URL`；内测态禁止出现购买直链。可照搬，见 `docs/activation-service-plan.md` §5 | 创建商品、给出结账直链与 product_id、确认退款期限 |
+| 2 | 生产激活服务 `/api/activate` | 仅本地 mock；客户端默认地址为占位域名 | Grabber 的 Pages Functions + D1 已跑通：license key 校验（必须查 refunded / chargebacked / disputed）、Ping 回查销售真实性、Ed25519 签发、名额原子控制、CORS 预检。骨架方案与 11 条验收已写成设计稿 | 决定服务形态、创建 D1、保管生产 Ed25519 私钥、提供 `GUMROAD_ACCESS_TOKEN` |
+| 3 | 更新包签名与 update manifest | 开发 minisign 密钥，端点占位 | Grabber 同样用 minisign + `latest.json` + `SHA2-256SUMS`，生产密钥仍是其待办 | 生成并保管生产 minisign 密钥对、提供 update endpoint |
+| 4 | 真实下载直链 | 官网用 `mailto:` 登记发放 | **代码部分已复刻 Grabber**：下载页上线版本号 + 真实 SHA-256 + 浏览器内本机校验（文件不上传），并明确当前包未签名、未分发；直链仍不伪造 | 完成代码签名后选择托管（GitHub Releases / R2） |
+| 5 | 代码签名 / 公证 | 报告标注「办理中」 | Grabber 也把 EV 证书列为 P0 待办，官网如实写「macOS 尚未完成 Apple 公证」；不伪装已签名 | EV/Authenticode 证书、Apple Developer ID 与公证账号 |
+| 6 | macOS 双架构产物 | 官网承诺双平台，实际无 macOS 包 | Grabber 有 arm64 / x64 双包但公证未完成，同样如实披露 | macOS 构建机或 CI runner、Apple 账号 |
+| 7 | 独立隐私政策 / 服务条款页 | **已完成**：中英 4 页上线，12 页 footer 全站链接 | Grabber 先例证明「运营主体全称」不是法务页硬阻塞；已按品牌名 + 邮箱 + Gumroad MoR 同口径上线，管辖条款沿用其 EULA 口径 | 仅当日后确定运营主体全称、注册地、数据留存期限时告诉我补进两页（不编造） |
+| 8 | `hello@payoncepdf.com` 邮箱 | 域名 MX 未配置 | **Grabber 用 Cloudflare Email Routing**：Dashboard → Email → Email Routing → Enable → 填目标邮箱并完成验证 → 按面板给出的 2 条 MX + 1 条 TXT/SPF 添加记录，DKIM/DMARC 由面板生成。不需要自建邮局，也不需要买企业邮箱 | 本人启用转发并确认目标邮箱；我可验证 DNS 与收发 |
+| 9 | 真机双平台端到端 | 文档标注「真机未验」 | 已按 Grabber 三分法重构 `docs/real-device-test-plan.md` §10：A 现在必跑 / B 只记录不判失败 / C 开卖后补测，含假失败清单与离线授权 5 步 | Windows / macOS 实机、抓包工具 |
+| 10 | Git 集成自动部署门禁 | 当前走 `npm run site:deploy`（CLI），**未启用** Git webhook | 不变 | 若改用 Git 集成，需在 Cloudflare 侧关闭「推 main 自动部署」或改为门禁后触发 |
+| 11 | `www` → 主域严格 301 | www 已绑定可访问但返回 **200**；靠 12 页 canonical 归一 | **按 Grabber 先例降级为非阻断**：zhuazhua.video 同样只把 apex + www 绑到 Pages，`_redirects` 与仓库里都没有域名级 / Redirect Rules 配置 | 仅当 SEO 明确需要严格 301 时才做；仍不擅自给 API Token 增加 Rulesets 权限（该 API 曾返回 403） |
 
-**优先级建议**：① 先定 7 的运营主体信息（这是唯一会阻塞法务页、且只有你知道的事实）→ ② 配置 8 的邮箱（否则所有 `mailto:` 都是无效入口）→ ③ 1/2 的 Gumroad 与激活服务必须一起设计（激活服务要校验订单）→ ④ 5/6 决定安装包能否对外分发 → ⑤ 4 在签名完成后才有意义。
+**优先级建议（按先例修订）**：① 第 8 项 Email Routing（零成本，让所有 `mailto:` 变成有效入口）→ ② 第 1/2 项一起做（Gumroad 与激活服务必须共用订单校验，方案见 `docs/activation-service-plan.md`）→ ③ 第 5/6 项决定安装包能否对外分发 → ④ 第 4 项在签名完成后才有意义 → ⑤ 第 3、9、10、11 项按需，其中 11 已降级。
+
+**仍然 NO-GO（未伪装完成）**：Gumroad 商品与结账、生产激活端点、生产 minisign、真实下载直链、代码签名与公证、macOS 产物、真机双平台端到端，以及法务页里运营主体全称 / 数据留存期限的补充。**当前包仍无 Authenticode 签名，仅限内部验证，不可对外分发。**
 
 当前状态另见 `docs/test-report.md` §40 与上线前 CodeReview 报告。

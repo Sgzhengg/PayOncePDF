@@ -81,6 +81,29 @@
 
 <section>
   <div class="wrap">
+    <div class="sec-head"><h2>安装包校验值（SHA-256）</h2><p>拿到安装包后先核对哈希，确认文件完整、未被篡改。</p></div>
+    <div class="doc">
+      <p><b>当前状态：</b>下面这份是内部验证用的 Windows 安装包，尚未完成代码签名，也没有对外分发；下载通道仍通过邮件登记发放。等代码签名完成、公开直链上线后，这里会同步列出全部平台的版本、体积与校验值。</p>
+      <div class="qa">
+        <h3>PayOnce-PDF-Setup-1.0.0.exe · Windows 10/11 (x64)</h3>
+        <p>版本 1.0.0 · 31,719,938 B / 30.25 MiB · SHA-256：<code id="pkg-sha256" data-hash="8307c7b57aefedc9d5da18ce25a6523d750066aab95a5cf5ca826a01616d2d92">8307c7b57aefedc9d5da18ce25a6523d750066aab95a5cf5ca826a01616d2d92</code></p>
+      </div>
+      <div class="qa">
+        <h3>在本机核对（文件不上传）</h3>
+        <p>选择你手上的安装包，浏览器会用 WebCrypto 在本机算出 SHA-256 并与上方官方值比对。文件不会上传到任何服务器，全程只在你自己的浏览器里完成。</p>
+        <p><label for="pkg-file">选择安装包：</label> <input type="file" id="pkg-file" aria-label="选择要核对的安装包"></p>
+        <p id="pkg-result" class="verify-result" role="status" aria-live="polite"></p>
+      </div>
+      <div class="qa">
+        <h3>也可以用命令行核对</h3>
+        <p>Windows：<code>certutil -hashfile PayOnce-PDF-Setup-1.0.0.exe SHA256</code>；macOS / Linux：<code>shasum -a 256 &lt;文件&gt;</code>。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
     <div class="sec-head"><h2>安装与安全</h2><p>白名单开源组件，不引入 AGPL 许可代码。</p></div>
     <div class="faq">
       <div class="qa"><h3>安装包安全吗？</h3><p>项目坚持白名单开源组件（PDFium、qpdf、Tesseract、lopdf），不引入 AGPL 许可组件。更新包有签名校验，失败保留旧版本可回滚。当前安装包仍在签名与发布准备中，下载入口上线前不会伪造可点击链接。</p></div>
@@ -111,6 +134,8 @@
       <a href="/download.html">下载</a>
       <a href="/pricing.html">价格</a>
       <a href="/help.html">帮助</a>
+      <a href="/privacy.html">隐私政策</a>
+      <a href="/terms.html">服务条款</a>
       <a href="mailto:hello@payoncepdf.com">hello@payoncepdf.com</a>
     </div>
     <div class="legal">
@@ -120,6 +145,8 @@
     </div>
   </div>
 </footer>
+
+<script src="/verify-sha256.js" defer></script>
 
 </body>
 </html>

@@ -15,7 +15,7 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 test('官网部署目录通过全部本地验收门禁', () => {
   const gate = checkLocalFiles();
   assert.deepEqual(gate.blockers, [], `官网存在阻断项：${gate.blockers.join(' | ')}`);
-  assert.equal(gate.stats.pages, 8);
+  assert.equal(gate.stats.pages, 12);
   assert.ok(gate.stats.links > 100, '站内链接总数应符合 8 页规模');
 });
 
@@ -79,15 +79,15 @@ test('线上 HTTP 验收跟随重定向，而非把 Pages 的 308 误判为失�
   assert.match(src, /疑似重定向循环/, '循环必须被明确报出');
 });
 
-test('8 页中英镜像齐全，Gumroad 保持占位且不造假直链', () => {
-  assert.equal(PAGES.length, 8);
+test('12 页中英镜像齐全，Gumroad 保持占位且不造假直链', () => {
+  assert.equal(PAGES.length, 12);
   const all = PAGES.map((p) => read(`site-cloudflare/${p}`)).join('\n');
   assert.doesNotMatch(all, /href="https:\/\/gumroad\.com\/l\//i);
   assert.equal((all.match(/aria-disabled="true"/g) || []).length, 2);
   assert.doesNotMatch(all, /\$29|¥149/, '部署物不得残留早鸟价');
 });
 
-test('隐私披露中英 8 页一致，明确告知激活提交的指纹哈希', () => {
+test('隐私披露中英 12 页一致，明确告知激活提交的指纹哈希', () => {
   for (const p of PAGES) {
     const s = read(`site-cloudflare/${p}`);
     assert.match(s, /SHA-256/, `${p} 必须披露指纹哈希算法`);
@@ -112,4 +112,54 @@ test('隐私披露中英 8 页一致，明确告知激活提交的指纹哈希',
       `${p} 的 JSON-LD 需同步新增激活问答`,
     );
   }
+});
+
+test('按 Grabber 口径新增的中英法务页不编造运营主体', () => {
+  const legal = ['privacy.html', 'terms.html', 'en/privacy.html', 'en/terms.html'];
+  for (const p of legal) {
+    const s = read(`site-cloudflare/${p}`);
+    assert.match(s, /rel="canonical"/, `${p} 必须有 canonical`);
+    assert.match(s, /hello@payoncepdf\.com/, `${p} 必须给出唯一联系邮箱`);
+    assert.match(s, /Gumroad/, `${p} 必须披露收款主体`);
+    assert.match(s, /7 天|7 days|7-day/, `${p} 必须写明试用/退款期限`);
+    assert.match(s, /SHA-256/, `${p} 必须披露指纹哈希`);
+    assert.doesNotMatch(s, /有限公司|有限责任公司|Inc\.|LLC|统一社会信用代码|注册地址：/,
+      `${p} 不得编造运营主体法定名称与注册地`);
+  }
+  assert.match(read('site-cloudflare/terms.html'), /\$39 \/ ¥199/);
+  assert.match(read('site-cloudflare/en/terms.html'), /\$39 \/ ¥199/);
+  assert.match(read('site-cloudflare/privacy.html'), /隐私政策/);
+  assert.match(read('site-cloudflare/en/privacy.html'), /Privacy Policy/);
+  for (const p of PAGES) {
+    const s = read(`site-cloudflare/${p}`);
+    assert.match(s, /href="\/(?:en\/)?privacy\.html"/, `${p} footer 缺少隐私政策链接`);
+    assert.match(s, /href="\/(?:en\/)?terms\.html"/, `${p} footer 缺少服务条款链接`);
+  }
+});
+
+test('下载页 SHA-256 校验器：哈希与交付文档一致，脚本纯本地无网络', () => {
+  const hash = (read('README.md').match(/SHA-256\s+`([0-9a-f]{64})`/i) || [])[1];
+  assert.ok(hash, 'README 必须给出当前发行包 SHA-256');
+  for (const p of ['download.html', 'en/download.html']) {
+    const s = read(`site-cloudflare/${p}`);
+    assert.ok(s.includes(`data-hash="${hash}"`), `${p} 的校验值必须与 README 一致`);
+    assert.match(s, /id="pkg-sha256"/);
+    assert.match(s, /id="pkg-file"/);
+    assert.match(s, /src="\/verify-sha256\.js"/);
+    assert.doesNotMatch(s, /https?:\/\/[^\s"']*\.exe/, `${p} 不得伪造安装包直链`);
+  }
+  const js = read('site-cloudflare/verify-sha256.js');
+  assert.match(js, /crypto\.subtle\.digest/);
+  assert.match(js, /arrayBuffer/);
+  assert.doesNotMatch(js, /\b(?:fetch|XMLHttpRequest|WebSocket|sendBeacon|importScripts)\s*\(/,
+    '校验脚本不得发起任何网络请求');
+  assert.match(read('site-cloudflare/_headers'), /script-src 'self'/,
+    'CSP 必须允许同源外部脚本，否则校验器会被拦截');
+});
+
+test('线上验收在代理环境下给出可操作提示，不把本机直连失败误判为站点故障', () => {
+  const src = read('scripts/verify-cloudflare-site.mjs');
+  assert.match(src, /NODE_USE_ENV_PROXY/, 'fetch failed 时须提示启用环境代理');
+  assert.match(src, /fetch failed/, '提示只在 fetch failed 时触发');
+  assert.match(src, /HTTPS_PROXY/, '须检测系统代理环境变量');
 });

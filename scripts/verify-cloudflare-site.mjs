@@ -23,10 +23,14 @@ export const PAGES = [
   'download.html',
   'pricing.html',
   'help.html',
+  'privacy.html',
+  'terms.html',
   'en/index.html',
   'en/download.html',
   'en/pricing.html',
   'en/help.html',
+  'en/privacy.html',
+  'en/terms.html',
 ];
 
 const REQUIRED = [
@@ -36,10 +40,11 @@ const REQUIRED = [
   '_redirects',
   'wrangler.toml',
   'README.md',
+  'verify-sha256.js',
 ];
 
 // 干净路径只在 Cloudflare Pages / 专用预览脚本下生效，页面内链接必须直连 .html
-const CLEAN_PATH = /^\/(?:download|pricing|help|en|en\/(?:download|pricing|help))\/?$/;
+const CLEAN_PATH = /^\/(?:download|pricing|help|privacy|terms|en|en\/(?:download|pricing|help|privacy|terms))\/?$/;
 const VOID_TAGS = new Set([
   'meta', 'link', 'br', 'hr', 'img', 'input', 'source', 'wbr',
   'area', 'base', 'col', 'embed', 'param', 'track',
@@ -169,14 +174,14 @@ export function checkLocalFiles() {
     fakeGumroad += (html.match(/href="https:\/\/gumroad\.com\/l\//gi) || []).length;
   }
 
-  add('8 页标签配平', balanceIssues.length === 0,
+  add('12 页标签配平', balanceIssues.length === 0,
     balanceIssues.length ? balanceIssues.join(' | ') : '全部配平');
-  add('8 页导航 4 项 / 1 active', navIssues.length === 0,
+  add('12 页导航 4 项 / 1 active', navIssues.length === 0,
     navIssues.length ? navIssues.join(' | ') : '全部正确');
   add('站内链接可达', linkIssues.length === 0,
     linkIssues.length ? linkIssues.slice(0, 4).join(' | ') : `${linkCount} 条全部直连 .html`);
   add('canonical / hreflang', seoIssues.length === 0,
-    seoIssues.length ? seoIssues.join(' | ') : '8 页齐全');
+    seoIssues.length ? seoIssues.join(' | ') : '12 页齐全');
   add('价格口径', priceIssues.length === 0,
     priceIssues.length ? priceIssues.join(' | ') : '$39 / ¥199 单一标价');
   add('Gumroad 占位', ariaDisabled === 2 && fakeGumroad === 0,
@@ -207,6 +212,29 @@ export function checkLocalFiles() {
           : `301 跳转 ${redirects301.length} 条 / 域名级规则 0 条 / 200 rewrite 0 条（干净路径由 Pages 原生提供）`);
   }
 
+  // 参考 zhuazhua.video/download：校验值必须与交付文档一致，且校验脚本绝不联网
+  const readmeHash = (() => {
+    const rp = path.join(ROOT, 'README.md');
+    if (!fs.existsSync(rp)) return '';
+    const m = fs.readFileSync(rp, 'utf8').match(/SHA-256\s+`([0-9a-f]{64})`/i);
+    return m ? m[1] : '';
+  })();
+  const jsSrc = fs.existsSync(path.join(SITE, 'verify-sha256.js'))
+    ? read('verify-sha256.js') : '';
+  const pageHashes = ['download.html', 'en/download.html'].map((p) => {
+    const fp = path.join(SITE, p);
+    if (!fs.existsSync(fp)) return '';
+    return (fs.readFileSync(fp, 'utf8').match(/data-hash="([0-9a-f]{64})"/) || [])[1] || '';
+  });
+  const jsOffline = Boolean(jsSrc)
+    && !/\b(?:fetch|XMLHttpRequest|WebSocket|sendBeacon|importScripts)\s*\(/.test(jsSrc);
+  add('安装包校验器与交付哈希一致且离线',
+    Boolean(readmeHash && jsSrc && jsOffline && /crypto\.subtle\.digest/.test(jsSrc)
+      && pageHashes.every((h) => h === readmeHash)),
+    readmeHash
+      ? `README=${readmeHash.slice(0, 12)}… / 页面=${pageHashes.map((h) => (h || 'MISS').slice(0, 12)).join(',')} / 脚本离线=${jsOffline}`
+      : 'README 未找到当前发行包哈希');
+
   return { results, blockers, warnings, stats: { pages: PAGES.length, links: linkCount } };
 }
 
@@ -223,7 +251,8 @@ export async function checkHttp(base) {
   const origin = base.replace(/\/$/, '');
   const paths = [
     ...PAGES.map((p) => `/${p}`),
-    '/download', '/pricing', '/help', '/en/', '/en/pricing',
+    '/download', '/pricing', '/help', '/privacy', '/terms',
+    '/en/', '/en/pricing', '/en/privacy', '/en/terms',
   ];
 
   const failures = [];
@@ -250,8 +279,15 @@ export async function checkHttp(base) {
       if (!/PayOnce PDF/i.test(body)) failures.push(`${p} → 页面未标识 PayOnce PDF`);
     } catch (e) {
       const msg = e?.message || String(e);
+      // 本机存在系统代理时，Node 22 的 fetch 默认直连，可能全部报 "fetch failed"。
+      // 这不是站点故障：Node 22.21+ 可用 NODE_USE_ENV_PROXY=1 让 fetch 走环境代理。
+      const proxyHint = /fetch failed/i.test(msg)
+        && (process.env.HTTPS_PROXY || process.env.https_proxy)
+        && !process.env.NODE_USE_ENV_PROXY
+        ? '（检测到系统代理，Node fetch 默认不走代理；请用 NODE_USE_ENV_PROXY=1 重跑）'
+        : '';
       if (isClean && isLocal) warnings.push(`${p} → ${msg}`);
-      else failures.push(`${p} → 请求失败：${msg}${/redirect/i.test(msg) ? '（疑似重定向循环）' : ''}`);
+      else failures.push(`${p} → 请求失败：${msg}${proxyHint}${/redirect/i.test(msg) ? '（疑似重定向循环）' : ''}`);
     }
   }
   add('逐页 HTTP 验收', failures.length === 0,

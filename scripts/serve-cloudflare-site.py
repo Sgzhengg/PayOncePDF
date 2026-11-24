@@ -7,7 +7,7 @@
     python scripts/serve-cloudflare-site.py 8899        # 指定端口
 
 页面内链接已全部直连 `.html`，因此直接用 `python -m http.server` 也能正常浏览；
-本脚本只是额外补上 /download、/pricing、/help、/en/… 这类无扩展名路径，
+本脚本只是额外补上 /download、/pricing、/help、/privacy、/terms、/en/… 这类无扩展名路径，
 方便部署前完整验证 `_redirects` 的行为，避免本地点导航出现 404。
 
 本脚本放在 `scripts/` 而不是 `site-cloudflare/`：Cloudflare Pages 的
@@ -34,11 +34,15 @@ REWRITES = {
     "/download": "/download.html",
     "/pricing": "/pricing.html",
     "/help": "/help.html",
+    "/privacy": "/privacy.html",
+    "/terms": "/terms.html",
     "/en": "/en/index.html",
     "/en/": "/en/index.html",
     "/en/download": "/en/download.html",
     "/en/pricing": "/en/pricing.html",
     "/en/help": "/en/help.html",
+    "/en/privacy": "/en/privacy.html",
+    "/en/terms": "/en/terms.html",
 }
 
 # 与 _redirects 中的 301 保持一致（旧链接兼容）

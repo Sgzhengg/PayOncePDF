@@ -26,5 +26,7 @@
 # - 干净路径（/、/download、/pricing、/help、/en/、/en/download、/en/pricing、/en/help）
 #   由 Pages 原生 clean URL 提供，无需在 _redirects 里重复声明。
 # - Gumroad 商品未创建，pricing 页购买按钮为明确占位（href="#gumroad-pending"），不跳无效结账页。
-# - 法务与授权说明放在各页 footer，不伪造独立条款页。
+# - 法务页：/privacy.html /terms.html 与 /en/privacy.html /en/terms.html（2026-11-24 按
+#   zhuazhua.video 的口径新增）；干净路径 /privacy /terms /en/privacy /en/terms 由 Pages 原生提供。
+#   口径只写品牌名 + 联系邮箱 + Gumroad 收款主体，不编造运营主体法定名称与注册地。
 # - 旧站 site/ 的浅色多页是独立部署物，与本 Pages 站无关。

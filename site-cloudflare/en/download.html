@@ -81,6 +81,29 @@
 
 <section>
   <div class="wrap">
+    <div class="sec-head"><h2>Installer checksum (SHA-256)</h2><p>Verify the hash before installing to confirm the file is intact and untampered.</p></div>
+    <div class="doc">
+      <p><b>Current status:</b> the installer below is an internal validation build for Windows. It is not code-signed and is not publicly distributed; access is still arranged by email. Once code signing is complete and a public download link goes live, this page will list versions, sizes and checksums for every platform.</p>
+      <div class="qa">
+        <h3>PayOnce-PDF-Setup-1.0.0.exe · Windows 10/11 (x64)</h3>
+        <p>Version 1.0.0 · 31,719,938 B / 30.25 MiB · SHA-256: <code id="pkg-sha256" data-hash="8307c7b57aefedc9d5da18ce25a6523d750066aab95a5cf5ca826a01616d2d92">8307c7b57aefedc9d5da18ce25a6523d750066aab95a5cf5ca826a01616d2d92</code></p>
+      </div>
+      <div class="qa">
+        <h3>Verify locally (the file is never uploaded)</h3>
+        <p>Pick the installer you received; your browser computes its SHA-256 locally with WebCrypto and compares it with the official value above. Nothing is uploaded to any server &mdash; the whole check happens in your browser.</p>
+        <p><label for="pkg-file">Choose installer:</label> <input type="file" id="pkg-file" aria-label="Choose the installer to verify"></p>
+        <p id="pkg-result" class="verify-result" role="status" aria-live="polite"></p>
+      </div>
+      <div class="qa">
+        <h3>Or verify from the command line</h3>
+        <p>Windows: <code>certutil -hashfile PayOnce-PDF-Setup-1.0.0.exe SHA256</code>; macOS / Linux: <code>shasum -a 256 &lt;file&gt;</code>.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
     <div class="sec-head"><h2>Installation and safety</h2><p>Whitelisted open-source components; no AGPL-licensed code.</p></div>
     <div class="faq">
       <div class="qa"><h3>Is the installer safe?</h3><p>We keep a whitelist of open-source components (PDFium, qpdf, Tesseract, lopdf) and avoid AGPL-licensed code. Updates are signature-verified, with the previous version kept if verification fails. The installer is still in signing/release preparation — we won't fake a clickable download link before it ships.</p></div>
@@ -111,6 +134,8 @@
       <a href="/en/download.html">Download</a>
       <a href="/en/pricing.html">Pricing</a>
       <a href="/en/help.html">Help</a>
+      <a href="/en/privacy.html">Privacy</a>
+      <a href="/en/terms.html">Terms</a>
       <a href="mailto:hello@payoncepdf.com">hello@payoncepdf.com</a>
     </div>
     <div class="legal">
@@ -120,6 +145,8 @@
     </div>
   </div>
 </footer>
+
+<script src="/verify-sha256.js" defer></script>
 
 </body>
 </html>
