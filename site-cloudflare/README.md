@@ -39,7 +39,7 @@
 | `styles.css` | 8 页共享样式（深色主题、响应式、导航当前页高亮、Gumroad 占位样式） |
 | `../scripts/serve-cloudflare-site.py` | 零依赖本地预览服务器（**在部署目录之外**，模拟 `_redirects` 的干净路径与 301 跳转） |
 | `wrangler.toml` | Cloudflare Pages 项目配置（`pages_build_output_dir = "."`） |
-| `_headers` | 安全响应头（nosniff / SAMEORIGIN / Referrer-Policy / Permissions-Policy），对齐参照站 |
+| `_headers` | 安全响应头（CSP / HSTS / nosniff / SAMEORIGIN / Referrer-Policy / Permissions-Policy）、`README.md` 与 `wrangler.toml` 的 noindex、`styles.css` 短缓存 |
 | `_redirects` | www → 主域 301；`/download` `/pricing` `/help` 及 `/en/` 四页的干净路径 rewrite；旧链接兼容 |
 | `README.md` | 本文件 |
 

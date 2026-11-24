@@ -15,6 +15,31 @@
 - `site-cloudflare/` 内除 8 个 HTML、`styles.css`、`_headers`、`_redirects` 外，`README.md` 与 `wrangler.toml` 也会被 Pages 当成静态资源发布；`_headers` 已给这两者加 `X-Robots-Tag: noindex`。
 - 本地预览脚本已从部署目录移到 `scripts/serve-cloudflare-site.py`；`__pycache__/` 与任何 `.pyc` **不得**进入部署目录（`.gitignore` 已忽略）。
 
+## 域名与 DNS 现状（2026-11-24 实测）
+
+> 触发原因：用户在浏览器输入 `payoncepdf.com` 打不开。这不是官网代码缺陷，也不是本机网络故障。
+
+| 项 | 实测结果 | 依据 |
+| --- | --- | --- |
+| 域名注册 | **已注册**，阿里云万网 / HiChina（IANA 1599），2026-11-16 注册、2027-11-16 到期，状态 `active` | Verisign RDAP `payoncepdf.com` |
+| 权威 NS | `dns19.hichina.com` / `dns20.hichina.com`（阿里云默认，**未接入 Cloudflare**） | RDAP nameservers + 本机 `nslookup -type=NS` |
+| A / AAAA / CNAME | 向权威 NS 查询仅返回 SOA 否定应答，**没有任何指向网站的记录** | `nslookup -type=A/-type=CNAME payoncepdf.com dns19.hichina.com` |
+| Cloudflare Pages 项目 | **尚未创建 / 未部署**，没有 `*.pages.dev` 地址 | 无部署记录 |
+| 结论 | DNS 无记录 → 浏览器必然打不开；工具侧独立网络访问 `https://payoncepdf.com` 同样失败 | 已排除「只有本机代理异常」的可能 |
+
+注意域名拼写是 **`payoncepdf.com`**（pdf 在前）；`payoncepfd.com` 是早期需求里的笔误，从未注册或使用。
+
+### 让 `payoncepdf.com` 真正可访问的三步（需用户账号授权，仓库内无法代做）
+
+1. **接入 Cloudflare**：Dashboard → *Add a site* → `payoncepdf.com`，拿到分配的两个 nameserver；到阿里云万网把该域名的 DNS 服务器改成这两个 NS，等待生效（10 分钟～数小时）。
+2. **建 Pages 项目**（二选一）：
+   - CLI：`npx wrangler login` → `cd site-cloudflare` → `npx wrangler pages deploy . --project-name payoncepdf --branch main`；
+   - Git 集成：仓库 `Sgzhengg/PayOncePDF` / 分支 `main`，Framework preset **None**、Build command **留空**、Build output directory **`site-cloudflare`**。
+   首次部署会得到 `*.pages.dev` 地址，**可先用它验证中英 8 页**，不必等自定义域生效。
+3. **绑自定义域**：Pages → *Settings* → *Domains* → Add `payoncepdf.com`（可另加 `www.payoncepdf.com`，`_redirects` 已做 www→主域 301），等 Universal SSL 状态变 **Active**；根域用 CNAME flattening，**不要在阿里云手工填猜测的 A 记录**。
+
+Cloudflare 账号授权与阿里云域名 DNS 控制权都属于用户本人；当前环境也没有可直接操作 Cloudflare 的连接器，因此这一步只能由用户在控制台完成。
+
 ## 上线前置（质量门禁）
 
 1. GitHub Actions `quality` job（`npm run typecheck` / `npm test` / `npm run build` / `python scripts/verify-public-key.py`）必须绿；
