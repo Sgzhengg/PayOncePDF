@@ -244,24 +244,34 @@ export function checkLocalFiles() {
     p,
     html: fs.existsSync(path.join(SITE, p)) ? read(p) : '',
   }));
+  const DL_URL = 'https://dl.payoncepdf.com/v1.0.0/PayOnce-PDF-Setup-1.0.0.exe';
+  const SUMS_URL = 'https://dl.payoncepdf.com/v1.0.0/SHA256SUMS.txt';
   const entryShapeOk = dlPages.every(({ html }) =>
-    /<button[^>]*class="btn primary"[^>]*data-getbuild-open/.test(html)
+    /<a[^>]*class="btn primary"[^>]*href="https://////dl//.payoncepdf//.com///v1//.0//.0///PayOnce-PDF-Setup-1//.0//.0//.exe"/.test(html)
+    && /<button[^>]*class="btn ghost"[^>]*data-getbuild-open/.test(html)
     && /class="getbuild" id="get-build"/.test(html)
     && /data-copy="email"/.test(html)
     && /data-copy="mail"/.test(html)
     && /src="\/get-build\.js"/.test(html)
     && /aria-live="polite"/.test(html)
     && !/<a[^>]*class="btn primary"[^>]*href="mailto:/.test(html));
+  // 直链只能有一个，且必须与校验区/README 描述同一个文件
+  const dlLinksUnique = dlPages.every(({ html }) => {
+    const found = [...html.matchAll(/https?:\/\/[^\s"']*\.exe/g)].map((m) => m[0]);
+    return found.length > 0 && found.every((u) => u === DL_URL);
+  });
+  const dlDisclosed = dlPages.every(({ html }) =>
+    html.includes(SUMS_URL) && /not code-signed|未做代码签名/.test(html));
   const buildJsOk = Boolean(buildJs)
     && /navigator\.clipboard/.test(buildJs)
     && /execCommand\('copy'\)/.test(buildJs)
     && /aria-expanded/.test(buildJs)
     && !/\b(?:fetch|XMLHttpRequest|WebSocket|sendBeacon|importScripts)\s*\(/.test(buildJs);
-  add('试用入口有就地兜底，不再是裸 mailto',
-    entryShapeOk && buildJsOk,
-    entryShapeOk && buildJsOk
-      ? '中英下载页均为 button + 展开面板；脚本用 clipboard API，失败回退 execCommand，零网络请求'
-      : `按钮/面板结构=${entryShapeOk} / get-build.js=${buildJsOk}`);
+  add('试用入口是真实直链，mailto 仅作兜底',
+    entryShapeOk && buildJsOk && dlLinksUnique && dlDisclosed,
+    entryShapeOk && buildJsOk && dlLinksUnique && dlDisclosed
+      ? '中英下载页主按钮指向 dl.payoncepdf.com 的 1.0.0 安装包；另给 SHA256SUMS 与未签名披露；邮件面板仅兜底'
+      : `按钮/面板=${entryShapeOk} / 脚本=${buildJsOk} / 直链唯一=${dlLinksUnique} / 披露=${dlDisclosed}`);
 
   return { results, blockers, warnings, stats: { pages: PAGES.length, links: linkCount } };
 }

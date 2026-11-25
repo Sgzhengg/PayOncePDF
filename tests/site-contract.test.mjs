@@ -146,7 +146,21 @@ test('下载页 SHA-256 校验器：哈希与交付文档一致，脚本纯本�
     assert.match(s, /id="pkg-sha256"/);
     assert.match(s, /id="pkg-file"/);
     assert.match(s, /src="\/verify-sha256\.js"/);
-    assert.doesNotMatch(s, /https?:\/\/[^\s"']*\.exe/, `${p} 不得伪造安装包直链`);
+    assert.ok(
+      s.includes('https://dl.payoncepdf.com/v1.0.0/PayOnce-PDF-Setup-1.0.0.exe'),
+      `${p} 必须指向真实安装包直链（R2 自定义域）`
+    );
+    assert.ok(
+      s.includes('https://dl.payoncepdf.com/v1.0.0/SHA256SUMS.txt'),
+      `${p} 必须提供官方校验清单`
+    );
+    assert.match(s, /未做代码签名|not code-signed|not code-signed yet/,
+      `${p} 必须披露未签名与 SmartScreen 风险`);
+    // 直链之外不得出现其它安装包域名，防止有人塞进未核验的镜像
+    const exeLinks = [...s.matchAll(/https?:\/\/[^\s"']*\.exe/g)].map((m) => m[0]);
+    assert.deepEqual([...new Set(exeLinks)],
+      ['https://dl.payoncepdf.com/v1.0.0/PayOnce-PDF-Setup-1.0.0.exe'],
+      `${p} 只允许一个经核验的安装包直链`);
   }
   const js = read('site-cloudflare/verify-sha256.js');
   assert.match(js, /crypto\.subtle\.digest/);
@@ -164,7 +178,7 @@ test('线上验收在代理环境下给出可操作提示，不把本机直连�
   assert.match(src, /HTTPS_PROXY/, '须检测系统代理环境变量');
 });
 
-test('首页试用 CTA 指向下载页，下载页试用入口不再是裸 mailto', () => {
+test('首页试用 CTA 指向下载页，下载页试用入口是真实直链（mailto 仅作兜底）', () => {
   // 症状回归：用户反馈「首页点立即开始 7 天试用后无法进入下载页面」。
   // 真因是下载页主按钮 href="mailto:"，未配默认邮件程序的机器点了毫无反应。
   const home = [
@@ -180,10 +194,14 @@ test('首页试用 CTA 指向下载页，下载页试用入口不再是裸 mailt
   }
   for (const p of ['download.html', 'en/download.html']) {
     const s = read(`site-cloudflare/${p}`);
+    assert.ok(
+      s.includes('class="btn primary" href="https://dl.payoncepdf.com/v1.0.0/PayOnce-PDF-Setup-1.0.0.exe"'),
+      `${p} 的主 CTA 必须是真实下载直链`
+    );
     assert.match(
       s,
-      /<button type="button" class="btn primary" data-getbuild-open data-widget="get-build">/,
-      `${p} 的试用按钮必须是 button（mailto 在无邮件程序时会静默失败）`
+      /<button type="button" class="btn ghost" data-getbuild-open data-widget="get-build">/,
+      `${p} 必须保留 mailto 兜底按钮（且不是主按钮）`
     );
     assert.match(s, /class="getbuild" id="get-build"/, `${p} 必须有就地展开的登记面板`);
     assert.match(s, /data-copy="email"/, `${p} 必须提供一键复制邮箱`);

@@ -11,7 +11,7 @@
 | 路径 | 中文文件 | 英文文件 | 主要内容 |
 |---|---|---|---|
 | `/` | `index.html` | `en/index.html` | 状态条 + 导航 + Hero（左钩子/右演示卡）+ Bento 6 卡 + 3 列对比表 + 痛点对照 + 平台支持 + 收尾 CTA + 法务 |
-| `/download` | `download.html` | `en/download.html` | 三步开始 + 平台支持 + 安装与安全 FAQ + 试用 CTA |
+| `/download` | `download.html` | `en/download.html` | 真实下载直链 + 未签名披露 + 三步开始 + 平台支持 + SHA-256 本机校验 + 邮件兜底 |
 | `/pricing` | `pricing.html` | `en/pricing.html` | 一次买断双卡（含 Gumroad 占位按钮）+ 对比表 + 付费 FAQ |
 | `/help` | `help.html` | `en/help.html` | FAQ 帮助中心（隐私/编辑边界/系统授权）+ 联系方式 |
 | `/privacy` | `privacy.html` | `en/privacy.html` | 隐私政策：文档不上传、三类网络请求、设备指纹 SHA-256 哈希、邮件用途边界 |
@@ -78,7 +78,7 @@ npx wrangler pages deploy . --project-name payoncepdf --branch main
 
 首次部署会创建 Pages 项目并返回 `*.pages.dev` 预览地址（Wrangler 4.x 需先 `pages project create`，脚本已自动处理）；后续同名部署即更新。
 
-**当前状态（2026-11-24）**：项目 `payoncepdf` 已创建并部署，固定地址 https://payoncepdf.pages.dev/；**自定义域 https://payoncepdf.com/ 已绑定并可访问** —— 中英 8 个主导航页 + 4 个法务页共 12 页 / 21 条路径逐页验收通过、CSP/HSTS 命中、TLS 验签通过。首次部署曾因 `_redirects` 的 200 rewrite 与 Pages 原生 308 冲突造成重定向循环，已修复；域名 NS 切换与自定义域绑定过程见根目录 `DEPLOYMENT.md`「域名与 DNS 现状」「自定义域绑定记录」。
+**当前状态（2026-11-25）**：Windows 安装包已可通过 `dl.payoncepdf.com` 直链下载（未签名，页面已披露 SmartScreen 提示）。**2026-11-24 状态**：项目 `payoncepdf` 已创建并部署，固定地址 https://payoncepdf.pages.dev/；**自定义域 https://payoncepdf.com/ 已绑定并可访问** —— 中英 8 个主导航页 + 4 个法务页共 12 页 / 21 条路径逐页验收通过、CSP/HSTS 命中、TLS 验签通过。首次部署曾因 `_redirects` 的 200 rewrite 与 Pages 原生 308 冲突造成重定向循环，已修复；域名 NS 切换与自定义域绑定过程见根目录 `DEPLOYMENT.md`「域名与 DNS 现状」「自定义域绑定记录」。
 
 ### 方式 B：GitHub 集成（推荐，改代码自动上线）
 
@@ -108,7 +108,7 @@ npx wrangler pages deploy . --project-name payoncepdf --branch main
 |---|---|---|
 | **Gumroad 购买按钮**（pricing 页双卡主按钮，中/英两版） | 金色按钮「在 Gumroad 购买 →」，`href="#gumroad-pending"` + `aria-disabled="true"`，点击跳到同页说明框，**不是**假结账链接 | 商品创建后，把 `href="#gumroad-pending"` 替换为真实 Gumroad 商品 URL（如 `https://你.gumroad.com/l/payoncepdf`），并移除 `aria-disabled` 与说明框 |
 | **客户端缴费地址**（试用到期弹窗 / 授权面板的「点击缴费」） | `src/lib/commerce.ts` 的 `PAYMENT_URL = "https://payoncepdf.com/pricing"`，指向价格页，不伪造 Gumroad 直链 | 商品就绪后改为真实 Gumroad 结账直链；官网购买按钮同步替换 |
-| 试用申请按钮（download 页） | `<button data-getbuild-open>` → 就地展开登记面板（复制邮箱 / 复制整封邮件 / 可选打开本机邮件程序），不再用会静默失败的裸 `mailto:`；下载页另有真实 SHA-256 校验区（内部验证包，非公开直链） | 代码签名完成后换成真实下载直链，面板同步改为直链 + 全部平台哈希 |
+| 下载入口（download 页） | **已完成（2026-11-25）**：主按钮直连 `https://dl.payoncepdf.com/v1.0.0/PayOnce-PDF-Setup-1.0.0.exe`（R2 + 自定义域），旁附 `SHA256SUMS.txt`；`<button data-getbuild-open>` 降级为「下载遇到问题」兜底面板（复制邮箱 / 复制整封邮件 / 可选打开本机邮件程序），不会静默失败 | 拿到 Authenticode 证书后重签并换版本目录；macOS 构建后补第二行直链与哈希 |
 | 「订阅上线提醒」小字 | `mailto:` 订阅 | 有正式邮件列表后替换 |
 | 移动端订阅提醒 | `mailto:` 订阅 | 同上 |
 | 联系邮箱 | `hello@payoncepdf.com` | 需确认邮箱已开通并配置 MX |

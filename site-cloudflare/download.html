@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>下载免费试用 · 本地离线 PDF 编辑器 — PayOnce PDF</title>
-<meta name="description" content="点击下载即进入 7 天全功能试用：Windows 10/11 与 macOS 11+，安装后自动开始，无需账号、无需绑卡，文件永不上传。到期在软件内弹缴费窗口；已购买用户到期自动转永久。下载通道正在准备中，暂通过邮件登记发放。">
+<meta name="description" content="点击即下载 Windows 安装包，装完自动进入 7 天全功能试用，无需账号、无需绑卡，文件永不上传。到期在软件内弹缴费窗口；已购买用户到期自动转永久。安装包当前未做代码签名，页面提供 SHA-256 校验与邮件兜底通道。">
 <meta name="theme-color" content="#0b0f16">
 <link rel="stylesheet" href="/styles.css">
 <link rel="canonical" href="https://payoncepdf.com/download">
@@ -43,21 +43,24 @@
     <h1>先试用，再决定</h1>
     <p>把 PDF 的事留在本机——不上传、不订阅、不转格式。7 天完整功能，到期不自动扣费。</p>
     <div class="btns" style="justify-content:center;margin-top:24px">
-      <button type="button" class="btn primary" data-getbuild-open data-widget="get-build">立即开始 7 天试用 →</button>
+      <a class="btn primary" href="https://dl.payoncepdf.com/v1.0.0/PayOnce-PDF-Setup-1.0.0.exe" rel="noopener">下载 Windows 安装包 · 30.25 MiB →</a>
       <a class="btn ghost" href="/pricing.html">查看买断价格</a>
     </div>
-    <div class="getbuild" id="get-build" data-email="hello@payoncepdf.com" data-mail="收件人：hello@payoncepdf.com\n主题：申请 PayOnce PDF 7 天试用\n\n你好，我想申请 PayOnce PDF 的 7 天试用。\n平台：Windows / macOS（保留需要的一项）\n系统版本：\n用途简述（可选）：">
+    <p style="font-size:12px;color:#6b7488;margin:14px 0 0;line-height:1.9">Windows 10/11 (x64) · 装完即自动进入 7 天全功能试用，不需要账号、绑卡或激活码。<br>
+      当前安装包<b style="color:var(--txt)">未做代码签名</b>，Windows 可能提示「未知发布者」：点「更多信息 → 仍要运行」即可。下载后建议先用<a href="#pkg-sha256" style="color:var(--pri)">页内校验器</a>核对 SHA-256，也可直接取<a href="https://dl.payoncepdf.com/v1.0.0/SHA256SUMS.txt" style="color:var(--pri)">官方校验清单</a>。macOS 版本尚未构建。</p>
+    <button type="button" class="btn ghost" data-getbuild-open data-widget="get-build">下载遇到问题？改用邮件获取 →</button>
+    <div class="getbuild" id="get-build" data-email="hello@payoncepdf.com" data-mail="收件人：hello@payoncepdf.com\n主题：下载 PayOnce PDF 安装包遇到问题\n\n你好，我在下载 PayOnce PDF 安装包时遇到问题。\n平台：Windows 10 / 11（保留需要的一项）\n现象：下载中断 / 被杀软拦截 / 打不开（保留一项）\n是否需要 macOS 版本通知：">
       <div class="getbuild-panel" hidden>
-        <p><b style="color:var(--txt)">下载通道正在准备中</b>，安装包目前通过邮件登记发放。本机若没有配置默认邮件程序，点 mailto 是不会有任何反应的，所以这里留了三条都能走通的路。</p>
+        <p><b style="color:var(--txt)">直链打不开时</b>（网络或杀软拦截、需要镜像），把这封邮件发给我们，人工把安装包与校验值发给你。本机没配默认邮件程序时点 mailto 不会有任何反应，所以这里给了三条都能走通的路。</p>
         <ol>
           <li>复制邮箱，用任意邮箱发送：<code>hello@payoncepdf.com</code><button type="button" class="mini" data-copy="email">复制邮箱</button></li>
           <li>复制整封邮件（含主题与模板正文）<button type="button" class="mini" data-copy="mail">复制完整邮件</button></li>
-          <li>或 <a class="mail" href="mailto:hello@payoncepdf.com?subject=申请%20PayOnce%20PDF%207%20天试用">打开本机邮件应用</a>（仅在系统已设默认邮件程序时有效）</li>
+          <li>或 <a class="mail" href="mailto:hello@payoncepdf.com?subject=下载%20PayOnce%20PDF%20安装包遇到问题">打开本机邮件应用</a>（仅在系统已设默认邮件程序时有效）</li>
         </ol>
-        <p class="getbuild-status" role="status" aria-live="polite">安装包就绪后我们会回信给出下载方式与校验值。</p>
+        <p class="getbuild-status" role="status" aria-live="polite">我们通常在一个工作日内回信。</p>
       </div>
     </div>
-    <p style="font-size:12px;color:#6b7488;margin:12px 0 0">装完即自动进入 7 天试用，无需账号、绑卡或激活码。下载通道正在准备中：点击按钮会在本页展开邮件登记方式，可一键复制，不依赖本机邮件程序。</p>
+    <p style="font-size:12px;color:#6b7488;margin:12px 0 0">正常情况直接用上面的下载按钮即可；这一条只是兜底通道。</p>
   </div>
 </div>
 
@@ -65,8 +68,8 @@
   <div class="wrap">
     <div class="sec-head"><h2>三步开始</h2><p>安装即自动进入 7 天试用，无需账号、无需绑卡；到期再决定要不要买断。</p></div>
     <div class="steps">
-      <div class="step-card"><div class="num">1</div><h3>获取安装包</h3><p>点击上方「立即开始 7 天试用」，页面会就地展开邮件登记方式（可一键复制邮箱或整封邮件），安装包就绪后我们把下载方式发给你。安装完即自动进入 7 天全功能试用，不需要注册、绑卡或输入激活码。</p></div>
-      <div class="step-card"><div class="num">2</div><h3>下载并安装</h3><p>Windows 10/11 与 macOS 11+（Apple 芯片 / Intel）原生安装包。本地引擎与应用一起安装，不依赖云端服务。更新包有签名校验，失败保留旧版本可回滚。</p></div>
+      <div class="step-card"><div class="num">1</div><h3>下载安装包</h3><p>点上方「下载 Windows 安装包」直接下载（30.25 MiB）。当前包未做代码签名，Windows 会提示未知发布者，点「更多信息 → 仍要运行」；装完即自动进入 7 天全功能试用，不需要注册、绑卡或输入激活码。</p></div>
+      <div class="step-card"><div class="num">2</div><h3>安装并核对</h3><p>Windows 10/11 (x64) 原生安装包，本地引擎与应用一起安装，不依赖云端服务。装完可用页内校验器核对 SHA-256；更新包有签名校验，失败保留旧版本可回滚。macOS 版本仍在准备中，上线后同步公布哈希。</p></div>
       <div class="step-card"><div class="num">3</div><h3>到期再决定</h3><p>全部 16 个工具在试用期内完整可用，文件与文件名只在本机处理，断网照常工作。到期时软件内会弹出缴费窗口，点击缴费在<a href="/pricing.html" style="color:var(--pri);border-bottom:1px dashed rgba(94,234,212,.5)">价格页</a>一次买断，输入激活码即可永久使用；已购买并激活过的用户自动转入买断模式，不再弹窗。文件不会被删除或改写。</p></div>
     </div>
   </div>
@@ -94,7 +97,7 @@
   <div class="wrap">
     <div class="sec-head"><h2>安装包校验值（SHA-256）</h2><p>拿到安装包后先核对哈希，确认文件完整、未被篡改。</p></div>
     <div class="doc">
-      <p><b>当前状态：</b>下面这份是内部验证用的 Windows 安装包，尚未完成代码签名，也没有对外分发；下载通道仍通过邮件登记发放。等代码签名完成、公开直链上线后，这里会同步列出全部平台的版本、体积与校验值。</p>
+      <p><b>当前状态：</b>Windows 安装包已可从直链下载（<code>dl.payoncepdf.com/v1.0.0/</code>），但<b>仍未完成代码签名</b>：Windows 首次运行会提示未知发布者，属预期现象。校验清单另提供 <code>SHA256SUMS.txt</code>，可与手上的文件逐一比对。macOS 版本尚未构建，因此暂无对应哈希。</p>
       <div class="qa">
         <h3>PayOnce-PDF-Setup-1.0.0.exe · Windows 10/11 (x64)</h3>
         <p>版本 1.0.0 · 31,719,938 B / 30.25 MiB · SHA-256：<code id="pkg-sha256" data-hash="8307c7b57aefedc9d5da18ce25a6523d750066aab95a5cf5ca826a01616d2d92">8307c7b57aefedc9d5da18ce25a6523d750066aab95a5cf5ca826a01616d2d92</code></p>
@@ -130,10 +133,10 @@
     <h2>准备好在本机处理 PDF 了吗</h2>
     <p>装完即开始 7 天试用，到期再决定要不要一次买断。</p>
     <div class="btns">
-      <button type="button" class="btn primary" data-getbuild-open data-widget="get-build">立即开始 7 天试用</button>
+      <a class="btn primary" href="https://dl.payoncepdf.com/v1.0.0/PayOnce-PDF-Setup-1.0.0.exe" rel="noopener">下载 Windows 安装包 · 30.25 MiB</a>
       <a class="btn ghost" href="/pricing.html">查看买断价格</a>
     </div>
-    <p style="font-size:12px;color:#6b7488;margin:18px auto 0">下载通道正在准备中，暂通过邮件登记发放（点击按钮会跳到本页上方的登记区）；通道开放后即可直接获取安装包。安装后一律自动进入 7 天试用，到期不会自动扣费。</p>
+    <p style="font-size:12px;color:#6b7488;margin:18px auto 0">安装后一律自动进入 7 天试用，到期不会自动扣费。当前包未签名，Windows 可能提示未知发布者；macOS 版本尚未构建。</p>
   </div>
 </section>
 </main>

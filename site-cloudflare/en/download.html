@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Download Free Trial · Local Offline PDF Editor — PayOnce PDF</title>
-<meta name="description" content="Download PayOnce PDF for a 7-day free trial: Windows 10/11 and macOS 11+, no account, no card, files never uploaded. Download channel in preparation; trial registration by email for now.">
+<meta name="description" content="Download the Windows installer for a 7-day full trial: no account, no card, files never uploaded. The build is not code-signed yet; this page offers SHA-256 verification and an email fallback channel.">
 <meta name="theme-color" content="#0b0f16">
 <link rel="stylesheet" href="/styles.css">
 <link rel="canonical" href="https://payoncepdf.com/en/download">
@@ -43,21 +43,24 @@
     <h1>Try it first, then decide</h1>
     <p>Keep PDF work on your machine — no upload, no subscription, no format conversion. Full features for 7 days, no automatic charge.</p>
     <div class="btns" style="justify-content:center;margin-top:24px">
-      <button type="button" class="btn primary" data-getbuild-open data-widget="get-build">Start 7-day trial →</button>
+      <a class="btn primary" href="https://dl.payoncepdf.com/v1.0.0/PayOnce-PDF-Setup-1.0.0.exe" rel="noopener">Download Windows installer · 30.25 MiB →</a>
       <a class="btn ghost" href="/en/pricing.html">See one-time price</a>
     </div>
-    <div class="getbuild" id="get-build" data-email="hello@payoncepdf.com" data-mail="To: hello@payoncepdf.com\nSubject: PayOnce PDF 7-day trial request\n\nHi, I would like to request the 7-day trial of PayOnce PDF.\nPlatform: Windows / macOS (keep one)\nOS version://nWhat I need it for (optional):">
+    <p style="font-size:12px;color:#6b7488;margin:14px 0 0;line-height:1.9">Windows 10/11 (x64) &middot; installing starts the full 7-day trial automatically &mdash; no account, card or key.<br>
+      This build is <b style="color:var(--txt)">not code-signed yet</b>, so Windows may warn about an unknown publisher: choose &ldquo;More info &rarr; Run anyway&rdquo;. Afterwards verify the SHA-256 with the <a href="#pkg-sha256" style="color:var(--pri)">in-page checker</a>, or fetch the <a href="https://dl.payoncepdf.com/v1.0.0/SHA256SUMS.txt" style="color:var(--pri)">official checksum list</a>. The macOS build is not available yet.</p>
+    <button type="button" class="btn ghost" data-getbuild-open data-widget="get-build">Trouble downloading? Get it by email →</button>
+    <div class="getbuild" id="get-build" data-email="hello@payoncepdf.com" data-mail="To: hello@payoncepdf.com\nSubject: Problem downloading the PayOnce PDF installer\n\nHi, I ran into a problem downloading the PayOnce PDF installer.\nPlatform: Windows 10 / 11 (keep one)\nSymptom: download interrupted / blocked by antivirus / will not open (keep one)\nAlso notify me about the macOS build:">
       <div class="getbuild-panel" hidden>
-        <p><b style="color:var(--txt)">The download channel is in preparation</b> &mdash; the installer is currently released by email registration. If this machine has no default mail app, a mailto link does nothing at all, so here are three routes that all work.</p>
+        <p><b style="color:var(--txt)">If the direct link fails</b> (network or antivirus blocking, or you need a mirror), send us this email and we will reply with the installer and its checksums. On a machine with no default mail app a mailto link does nothing at all, so here are three routes that all work.</p>
         <ol>
           <li>Copy the address and send from any mailbox: <code>hello@payoncepdf.com</code><button type="button" class="mini" data-copy="email">Copy email</button></li>
           <li>Copy the whole email (subject and template body)<button type="button" class="mini" data-copy="mail">Copy full email</button></li>
-          <li>Or <a class="mail" href="mailto:hello@payoncepdf.com?subject=PayOnce%20PDF%207-day%20trial%20request">open your local mail app</a> (only works when a default mail app is configured)</li>
+          <li>Or <a class="mail" href="mailto:hello@payoncepdf.com?subject=Problem%20downloading%20the%20PayOnce%20PDF%20installer">open your local mail app</a> (only works when a default mail app is configured)</li>
         </ol>
-        <p class="getbuild-status" role="status" aria-live="polite">Once the installer is ready we reply with the download details and checksums.</p>
+        <p class="getbuild-status" role="status" aria-live="polite">We usually reply within one business day.</p>
       </div>
     </div>
-    <p style="font-size:12px;color:#6b7488;margin:12px 0 0">The install starts a 7-day trial automatically &mdash; no account, card or key. The download channel is in preparation: the button expands the email registration right here, with one-click copying that does not depend on your machine having a mail app.</p>
+    <p style="font-size:12px;color:#6b7488;margin:12px 0 0">Use the download button above in normal cases; this is only a fallback channel.</p>
   </div>
 </div>
 
@@ -94,7 +97,7 @@
   <div class="wrap">
     <div class="sec-head"><h2>Installer checksum (SHA-256)</h2><p>Verify the hash before installing to confirm the file is intact and untampered.</p></div>
     <div class="doc">
-      <p><b>Current status:</b> the installer below is an internal validation build for Windows. It is not code-signed and is not publicly distributed; access is still arranged by email. Once code signing is complete and a public download link goes live, this page will list versions, sizes and checksums for every platform.</p>
+      <p><b>Current status:</b> the Windows installer is downloadable from <code>dl.payoncepdf.com/v1.0.0/</code>, but it is <b>still not code-signed</b> &mdash; Windows will warn about an unknown publisher on first run, which is expected. A <code>SHA256SUMS.txt</code> is published alongside it for file-by-file comparison. There is no macOS build yet, so no hash for it.</p>
       <div class="qa">
         <h3>PayOnce-PDF-Setup-1.0.0.exe · Windows 10/11 (x64)</h3>
         <p>Version 1.0.0 · 31,719,938 B / 30.25 MiB · SHA-256: <code id="pkg-sha256" data-hash="8307c7b57aefedc9d5da18ce25a6523d750066aab95a5cf5ca826a01616d2d92">8307c7b57aefedc9d5da18ce25a6523d750066aab95a5cf5ca826a01616d2d92</code></p>
@@ -117,7 +120,7 @@
   <div class="wrap">
     <div class="sec-head"><h2>Installation and safety</h2><p>Whitelisted open-source components; no AGPL-licensed code.</p></div>
     <div class="faq">
-      <div class="qa"><h3>Is the installer safe?</h3><p>We keep a whitelist of open-source components (PDFium, qpdf, Tesseract, lopdf) and avoid AGPL-licensed code. Updates are signature-verified, with the previous version kept if verification fails. The installer is still in signing/release preparation — we won't fake a clickable download link before it ships.</p></div>
+      <div class="qa"><h3>Is the installer safe?</h3><p>We keep a whitelist of open-source components (PDFium, qpdf, Tesseract, lopdf) and avoid AGPL-licensed code. Updates are signature-verified, with the previous version kept if verification fails. The current installer is not code-signed yet, so verify its SHA-256 before running it; the checksum is published on this page.</p></div>
       <div class="qa"><h3>Do I need an account or a card for the trial?</h3><p>No. The 7-day full trial needs no account and no credit card, and there's no automatic charge at expiry. We won't turn you into a subscriber without your say-so.</p></div>
       <div class="qa"><h3>What happens when the trial ends? Are my files deleted?</h3><p>No file is deleted or modified — only export is paused. Users who haven't bought see an in-app payment window: click to pay on Gumroad, then enter the activation key. Buyers who already activated switch to the lifetime buyout automatically and see no window.</p></div>
       <div class="qa"><h3>Is the trial feature-complete?</h3><p>Yes. All 16 tools are unlocked for 7 days with no feature gating, daily caps or file-size limits — only continued use after expiry requires a buyout license.</p></div>
@@ -130,10 +133,10 @@
     <h2>Ready to handle PDFs locally</h2>
     <p>Installing starts a 7-day trial; decide about the buyout at expiry.</p>
     <div class="btns">
-      <button type="button" class="btn primary" data-getbuild-open data-widget="get-build">Start 7-day trial</button>
+      <a class="btn primary" href="https://dl.payoncepdf.com/v1.0.0/PayOnce-PDF-Setup-1.0.0.exe" rel="noopener">Download Windows installer · 30.25 MiB</a>
       <a class="btn ghost" href="/en/pricing.html">See one-time price</a>
     </div>
-    <p style="font-size:12px;color:#6b7488;margin:18px auto 0">The download channel is in preparation &mdash; the button jumps to the registration block above; register by email for now and you'll be able to get the installer directly once it opens. Every install starts a 7-day trial, with no automatic charge at expiry.</p>
+    <p style="font-size:12px;color:#6b7488;margin:18px auto 0">Every install starts a 7-day trial with no automatic charge at expiry. The build is not code-signed yet, so Windows may warn about an unknown publisher. No macOS build yet.</p>
   </div>
 </section>
 </main>

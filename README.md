@@ -16,7 +16,7 @@
 - 需求文档：`docs/requirements/PRD.md`（项目内副本，原始位置 `E:\PainRadar\docs\pdf-launch\PRD.md`）；接口契约：`CONTRACT.md`（命令、错误码、验收映射，所有开发以此为准）。
 - 第二轮实测（对标补齐后）：`npm run build` 61 modules 通过、`cargo check --lib` 0 warning / 0 error、`cargo test --lib -- --test-threads=1` **28 PASS / 0 FAIL**（含 11 项真实 PDF 文件 + PDFium DLL + `qpdf --check` 文件级端到端）、UI 交互冒烟 **20 PASS / 0 FAIL**（15 入口）、验收 smoke **9 PASS / 0 FAIL / 14 SKIP(manual)**。详见 `docs/test-report.md` §13 与 `docs/pdfgear-parity-matrix.md` §2.2。
 - 当前有效安装包：**`PayOnce-PDF-Setup-1.0.0.exe`（30.25 MiB / 31,719,938 B，含 F1–F21 + 授权加固 + opener allow-list）+ 更新签名 `.sig`**（开发密钥，已密码学验签），位于 `src-tauri/target/release/bundle/nsis/`；SHA-256 `8307c7b57aefedc9d5da18ce25a6523d750066aab95a5cf5ca826a01616d2d92`，重建与验签见 `docs/test-report.md` §41。上一版 `f1276027…721ae83f03`（31,700,283 B）已备份为 `tests/out/*.PRE-OPENER.*`，与 §39 包及更早的 27.08 MiB 包（F1–F16）哈希全部作废，均不得对外分发。
-- **诚实边界**：安装包**没有 EV/Authenticode 签名**、macOS 公证、Gumroad/爱发电 密钥发放、真机双平台端到端测试均未完成；当前产物仅供内部验证，不可对外分发。
+- **诚实边界**：安装包**没有 EV/Authenticode 签名**、macOS 公证、Gumroad 密钥发放、真机双平台端到端测试均未完成。2026-11-25 起 Windows 包已按用户决定对外提供下载（`https://dl.payoncepdf.com/v1.0.0/`，附 `SHA256SUMS.txt`），但**仍是未签名包**：Windows 会提示未知发布者，官网已如实披露，不要把它描述成已签名或已公证。
 
 ---
 
