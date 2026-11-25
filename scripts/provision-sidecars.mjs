@@ -674,21 +674,62 @@ function checkSigned(file, t) {
  * 因此把同目录的 DLL 一并放进 bundle.resources，由 Rust 端 apply_child_env()
  * 把 resource_dir 前置到子进程 PATH，保证干净机器上也能启动。
  */
+const DLL_NAME_RE = /[A-Za-z0-9_.+\-]{3,64}\.dll/gi;
+
+/** 读出 PE 二进制里出现的 DLL 名（导入表与延迟加载表都以明文存放）。 */
+function referencedDlls(file) {
+  let buf;
+  try { buf = fs.readFileSync(file); } catch { return new Set(); }
+  const text = buf.toString('latin1');
+  const out = new Set();
+  for (const m of text.matchAll(DLL_NAME_RE)) out.add(m[0].toLowerCase());
+  return out;
+}
+
+/**
+ * 只复制 `srcPath` **真正依赖**的同目录 DLL（沿导入图做闭包）。
+ *
+ * 2026-11-25 修复：原实现把同目录所有 .dll 全量拷入 resources，而 MSYS2 的
+ * qpdf 发行目录里还躺着整条 GTK 栈（libicudt75 29MB、pango/cairo/glib/harfbuzz…），
+ * 结果 43.6 MB 死重量被打进安装包，包体 31.7 MB，国内单流 117 KB/s 时要下 4 分钟。
+ * 逐文件验证：删掉这些后用应用内自检跑 32/32 全过（libstdc++-6.dll 必须保留，
+ * 它被 qpdf 真实 import，只因文件名带 `+` 曾被扫描漏掉）。
+ */
 function copySiblingDlls(srcPath, resDir) {
   const dir = path.dirname(srcPath);
   let names = [];
   try {
     names = fs.readdirSync(dir).filter((n) => n.toLowerCase().endsWith('.dll'));
   } catch { return []; }
+  const available = new Map(names.map((n) => [n.toLowerCase(), n]));
+  const queue = [srcPath];
+  const seen = new Set();
+  const picked = [];
+  while (queue.length) {
+    const cur = queue.shift();
+    for (const dep of referencedDlls(cur)) {
+      if (seen.has(dep)) continue;
+      seen.add(dep);
+      const real = available.get(dep);
+      if (real) {
+        picked.push(real);
+        queue.push(path.join(dir, real));
+      }
+    }
+  }
   const copied = [];
-  for (const n of names) {
+  for (const n of picked) {
     const from = path.join(dir, n);
     const to = path.join(resDir, n);
     fs.copyFileSync(from, to);
     copied.push(n);
   }
+  const skipped = names.length - copied.length;
   if (copied.length) {
     log(`[provision]    随包 DLL (${copied.length} 个, resources/): ${copied.slice(0, 6).join(', ')}${copied.length > 6 ? ' ...' : ''}`);
+  }
+  if (skipped > 0) {
+    log(`[provision]    跳过同目录未被依赖的 DLL ${skipped} 个（不随包，避免死重量）`);
   }
   return copied;
 }

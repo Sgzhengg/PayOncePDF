@@ -244,8 +244,8 @@ export function checkLocalFiles() {
     p,
     html: fs.existsSync(path.join(SITE, p)) ? read(p) : '',
   }));
-  const DL_URL = 'https://dl.payoncepdf.com/v1.0.0/PayOnce-PDF-Setup-1.0.0.exe';
-  const SUMS_URL = 'https://dl.payoncepdf.com/v1.0.0/SHA256SUMS.txt';
+  const DL_URL = 'https://dl.payoncepdf.com/v1.0.1/PayOnce-PDF-Setup-1.0.1.exe';
+  const SUMS_URL = 'https://dl.payoncepdf.com/v1.0.1/SHA256SUMS.txt';
   const entryShapeOk = dlPages.every(({ html }) =>
     /<a[^>]*class="btn primary"[^>]*href="https://////dl//.payoncepdf//.com///v1//.0//.0///PayOnce-PDF-Setup-1//.0//.0//.exe"/.test(html)
     && /<button[^>]*class="btn ghost"[^>]*data-getbuild-open/.test(html)
@@ -270,7 +270,7 @@ export function checkLocalFiles() {
   add('试用入口是真实直链，mailto 仅作兜底',
     entryShapeOk && buildJsOk && dlLinksUnique && dlDisclosed,
     entryShapeOk && buildJsOk && dlLinksUnique && dlDisclosed
-      ? '中英下载页主按钮指向 dl.payoncepdf.com 的 1.0.0 安装包；另给 SHA256SUMS 与未签名披露；邮件面板仅兜底'
+      ? '中英下载页主按钮指向 dl.payoncepdf.com 的 1.0.1 安装包；另给 SHA256SUMS 与未签名披露；邮件面板仅兜底'
       : `按钮/面板=${entryShapeOk} / 脚本=${buildJsOk} / 直链唯一=${dlLinksUnique} / 披露=${dlDisclosed}`);
 
   return { results, blockers, warnings, stats: { pages: PAGES.length, links: linkCount } };

@@ -147,11 +147,11 @@ test('下载页 SHA-256 校验器：哈希与交付文档一致，脚本纯本�
     assert.match(s, /id="pkg-file"/);
     assert.match(s, /src="\/verify-sha256\.js"/);
     assert.ok(
-      s.includes('https://dl.payoncepdf.com/v1.0.0/PayOnce-PDF-Setup-1.0.0.exe'),
+      s.includes('https://dl.payoncepdf.com/v1.0.1/PayOnce-PDF-Setup-1.0.1.exe'),
       `${p} 必须指向真实安装包直链（R2 自定义域）`
     );
     assert.ok(
-      s.includes('https://dl.payoncepdf.com/v1.0.0/SHA256SUMS.txt'),
+      s.includes('https://dl.payoncepdf.com/v1.0.1/SHA256SUMS.txt'),
       `${p} 必须提供官方校验清单`
     );
     assert.match(s, /未做代码签名|not code-signed|not code-signed yet/,
@@ -159,7 +159,7 @@ test('下载页 SHA-256 校验器：哈希与交付文档一致，脚本纯本�
     // 直链之外不得出现其它安装包域名，防止有人塞进未核验的镜像
     const exeLinks = [...s.matchAll(/https?:\/\/[^\s"']*\.exe/g)].map((m) => m[0]);
     assert.deepEqual([...new Set(exeLinks)],
-      ['https://dl.payoncepdf.com/v1.0.0/PayOnce-PDF-Setup-1.0.0.exe'],
+      ['https://dl.payoncepdf.com/v1.0.1/PayOnce-PDF-Setup-1.0.1.exe'],
       `${p} 只允许一个经核验的安装包直链`);
   }
   const js = read('site-cloudflare/verify-sha256.js');
@@ -195,7 +195,7 @@ test('首页试用 CTA 指向下载页，下载页试用入口是真实直链（
   for (const p of ['download.html', 'en/download.html']) {
     const s = read(`site-cloudflare/${p}`);
     assert.ok(
-      s.includes('class="btn primary" href="https://dl.payoncepdf.com/v1.0.0/PayOnce-PDF-Setup-1.0.0.exe"'),
+      s.includes('class="btn primary" href="https://dl.payoncepdf.com/v1.0.1/PayOnce-PDF-Setup-1.0.1.exe"'),
       `${p} 的主 CTA 必须是真实下载直链`
     );
     assert.match(

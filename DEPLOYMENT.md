@@ -216,10 +216,10 @@
 | --- | --- |
 | 桶 | `payoncepdf-dl`（R2，与 `grabber-dl` / `recast-dl` 同账号） |
 | 公网域名 | `dl.payoncepdf.com`（R2 自定义域，CNAME → `public.r2.dev`，proxied） |
-| 当前版本目录 | `v1.0.0/` |
-| 安装包 | `https://dl.payoncepdf.com/v1.0.0/PayOnce-PDF-Setup-1.0.0.exe`（31,719,938 B / 30.25 MiB） |
-| 校验清单 | `https://dl.payoncepdf.com/v1.0.0/SHA256SUMS.txt` |
-| 更新签名 | `https://dl.payoncepdf.com/v1.0.0/PayOnce-PDF-Setup-1.0.0.exe.sig`（开发密钥） |
+| 当前版本目录 | `v1.0.1/`（2026-11-25 精简包；`v1.0.0/` 保留但已作废） |
+| 安装包 | `https://dl.payoncepdf.com/v1.0.1/PayOnce-PDF-Setup-1.0.1.exe`（19,375,119 B / 18.48 MiB，SHA-256 `39121646…e67147`） |
+| 校验清单 | `https://dl.payoncepdf.com/v1.0.1/SHA256SUMS.txt` |
+| 更新签名 | `https://dl.payoncepdf.com/v1.0.1/PayOnce-PDF-Setup-1.0.1.exe.sig`（开发密钥，`version:1.0.1`；口令见 `docs/RENAME-MIGRATION.md`） |
 | 备用 r2.dev | `https://pub-6c35caeaa9b549919cec09566806a467.r2.dev`（已启用，仅应急；r2.dev 有限流，不作正式入口） |
 
 发版流程（每次都要做，否则页面哈希与真实文件不一致）：
@@ -232,6 +232,15 @@
 
 已知边界：自定义域首次绑定时 `ownership_status`/`ssl_status` 会是 `pending`，此时访问返回 `error code: 1014`，通常 1–3 分钟内自动转 `active`；R2 对象默认按文件名给 `Content-Disposition: attachment`，不要去掉，否则 `.exe` 可能被浏览器当内联内容处理。
 
+### 1.0.1 为什么变小了（2026-11-25）
+
+用户反馈「安装包下载很慢」后实测：本机到 Cloudflare 落地 `SJC`，单流 117–240 KB/s、6 条并行合计 1.22 MB/s，而国内镜像 6–18 MB/s —— 慢在**国际链路单流受限**，不是文件或桶的问题。同期发现包里有 43.6 MB 死重量：
+
+- `scripts/provision-sidecars.mjs` 的 `copySiblingDlls()` 原先把 `qpdf.exe` **同目录所有 DLL** 拷入 resources，而 MSYS2 发行目录里带着整条 GTK/ICU 栈：`libicudt75.dll` 29.3 MB、`libicuin/icuuc` 4.1 MB、pango/cairo/glib/harfbuzz/freetype/fontconfig 等约 10 MB。主程序只 import `pdfium` + `qpdf`，这些库只互相引用。
+- 改为沿导入图做依赖闭包（`referencedDlls()` + BFS），只拷真正被引用的 DLL：resources 63 文件 / 78 MB → 41 文件 / 46 MB，安装包 **31.7 MB → 19.4 MB**。
+- 踩坑记录：`libstdc++-6.dll` 被 qpdf 真实 import，但文件名含 `+`，早期用 `[A-Za-z0-9_.\-]` 扫描会漏掉，删掉后自检报 `engine.qpdf_slice E2004`；恢复后 32/32。
+- 回归护栏：`tests/bundle-deps.test.mjs` 锁定「22 个死 DLL 不得回归 / DLL 合计 < 46 MB / 单文件不得 > 8 MB / qpdf 运行时依赖必须在 / provision 不得退回全量拷贝」。
+
 ## 剩余上线决策清单（按 Grabber 先例重新评估）
 
 > 仍区分「只有你能给的事实 / 操作」与「信息齐备后我能接着做的代码」。凡是涉及真实商业主体、账号、密钥、证书的信息，不会编造或用占位符冒充上线。
@@ -241,7 +250,7 @@
 | 1 | Gumroad 商品与结账链接 | 中英价格页按钮为占位（`aria-disabled`），客户端 `PAYMENT_URL` 指向价格页 | Grabber 用 `/buy/<plan>` 中间跳转 + `content/stage.json` 单一开关，开卖只需配 `GUMROAD_*_URL`；内测态禁止出现购买直链。可照搬，见 `docs/activation-service-plan.md` §5 | 创建商品、给出结账直链与 product_id、确认退款期限 |
 | 2 | 生产激活服务 `/api/activate` | 仅本地 mock；客户端默认地址为占位域名 | Grabber 的 Pages Functions + D1 已跑通：license key 校验（必须查 refunded / chargebacked / disputed）、Ping 回查销售真实性、Ed25519 签发、名额原子控制、CORS 预检。骨架方案与 11 条验收已写成设计稿 | 决定服务形态、创建 D1、保管生产 Ed25519 私钥、提供 `GUMROAD_ACCESS_TOKEN` |
 | 3 | 更新包签名与 update manifest | 开发 minisign 密钥，端点占位 | Grabber 同样用 minisign + `latest.json` + `SHA2-256SUMS`，生产密钥仍是其待办 | 生成并保管生产 minisign 密钥对、提供 update endpoint |
-| 4 | 真实下载直链 | **已完成（2026-11-25）**：R2 桶 `payoncepdf-dl` + 自定义域 `dl.payoncepdf.com`，直链 `https://dl.payoncepdf.com/v1.0.0/PayOnce-PDF-Setup-1.0.0.exe`（附 `SHA256SUMS.txt` 与 `.sig`），中英下载页主按钮已接真实直链 | 无（后续发版只需上传新版本目录并改页面链接） |
+| 4 | 真实下载直链 | **已完成（2026-11-25）**：R2 桶 `payoncepdf-dl` + 自定义域 `dl.payoncepdf.com`，直链指向 `v1.0.1/PayOnce-PDF-Setup-1.0.1.exe`（18.48 MiB，附 `SHA256SUMS.txt` 与 `.sig`），中英下载页主按钮已接真实直链 | 无（后续发版只需上传新版本目录并改页面链接） |
 | 5 | 代码签名 / 公证 | 报告标注「办理中」；**当前对外分发的包仍未签名**，官网已如实披露 SmartScreen 提示 | Grabber 也把 EV 证书列为 P0 待办，官网如实写「macOS 尚未完成 Apple 公证」；不伪装已签名 | EV/Authenticode 证书、Apple Developer ID 与公证账号 |
 | 6 | macOS 双架构产物 | 官网承诺双平台，实际无 macOS 包 | Grabber 有 arm64 / x64 双包但公证未完成，同样如实披露 | macOS 构建机或 CI runner、Apple 账号 |
 | 7 | 独立隐私政策 / 服务条款页 | **已完成**：中英 4 页上线，12 页 footer 全站链接 | Grabber 先例证明「运营主体全称」不是法务页硬阻塞；已按品牌名 + 邮箱 + Gumroad MoR 同口径上线，管辖条款沿用其 EULA 口径 | 仅当日后确定运营主体全称、注册地、数据留存期限时告诉我补进两页（不编造） |

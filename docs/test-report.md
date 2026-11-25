@@ -1751,3 +1751,64 @@ npx tauri build --bundles nsis && npm run bundle:rename
 - Gumroad 商品、激活端点、生产 minisign 密钥、真实下载直链、代码签名/公证、macOS 产物、真机双平台端到端仍是 NO-GO，见 §40.7 与决策清单。
 - 安装包仍**无 EV/Authenticode 签名**，minisign 为开发密钥，当前包仅限内部验证，不得对外分发。
 - 本轮只重建 Windows NSIS。
+
+---
+
+## 42. 下载慢的定位与 1.0.1 体积精简（2026-11-25）
+
+### 42.1 症状与实测
+
+用户反馈「安装包下载很慢」。在同一台机器（中国电信广东，出口 IP `120.235.225.26`）实测：
+
+| 测试 | 结果 |
+| --- | --- |
+| Edge 真实下载（HTTP/2） | 平均 **117 KB/s**、峰值 206 KB/s；30.25 MiB 需 4 分多钟 |
+| curl 单连接（IPv4 直连 / IPv6 直连 / 走代理） | 239 / 165 / 221 KB/s |
+| **curl 6 条并行各取 2 MB** | 合计 **1.22 MB/s**（≈ 单流 5–6 倍） |
+| Cloudflare 官方测速节点 `speed.cloudflare.com` | 133 KB/s |
+| 国内对照：npmmirror / 腾讯云镜像 | 6.07 MB/s / 18.3 MB/s |
+
+`/cdn-cgi/trace`：直连 `colo=SJC`、走代理 `colo=SEA`、站点主页同为 `SJC`，`loc=CN`。响应头正常（`cf-cache-status: HIT`、`max-age=14400`、`Accept-Ranges: bytes`、HTTP/2）。
+
+**结论**：慢在**中国电信 → Cloudflare 美西的国际链路**，单条 TCP 流被丢包压住；物理容量够（6 流 1.22 MB/s），国内线路本身正常（6–18 MB/s）。与安装包、R2 桶、官网页面无关。免费版无法指定就近机房（HKG/NRT 需 China Network，要求备案 + 企业版）。
+
+### 42.2 顺带发现的体积问题
+
+`src-tauri/resources` 63 个文件 78 MB，其中 **23 个 DLL 共 43.6 MB 在依赖图中不可达**：
+
+- `libicudt75.dll` 29.3 MB、`libicuin75.dll` 3.2 MB、`libicuuc75.dll` 1.8 MB
+- GTK 链：`libgio` `libglib` `libgobject` `libgmodule` `libpango*` `libcairo` `libharfbuzz` `libfreetype` `libfontconfig` `libpixman` `libpcre2` `libfribidi` `libgraphite2` `libthai` `libdatrie` `libffi`
+
+根因在 `scripts/provision-sidecars.mjs` 的 `copySiblingDlls()`：它把 `qpdf.exe` **同目录所有 `.dll`** 全量拷进 resources，而 MSYS2 的 qpdf 发行目录里就躺着整条 GTK/ICU 栈。主程序 `payoncepdf.exe` 只 import `pdfium` 与 `qpdf`，这些库仅彼此互相引用。
+
+### 42.3 修复
+
+1. `copySiblingDlls()` 改为沿导入图做**依赖闭包**（`referencedDlls()` 扫 PE 二进制里的 DLL 名，BFS 到不动点），只拷真正被引用的同目录 DLL，并输出跳过的数量。
+2. 删除已确认不可达的 22 个 DLL（保留 `libstdc++-6.dll`）。
+3. 版本号 1.0.0 → 1.0.1（`package.json` / `tauri.conf.json` / `Cargo.toml`）。
+4. 新增 `tests/bundle-deps.test.mjs` 作为回归护栏：22 个死 DLL 不得回归、DLL 合计 < 46 MB、单文件不得 > 8 MB、qpdf 运行时依赖必须在、provision 不得退回全量拷贝。
+
+### 42.4 踩坑：`libstdc++-6.dll` 必须保留
+
+第一次裁剪后干净目录自检 **31/32**，`engine.qpdf_slice` 报 `E2004 qpdf 执行失败`。原因是我最初的依赖扫描正则写成 `[A-Za-z0-9_.\-]`，**漏掉了文件名里带 `+` 的 `libstdc++-6.dll`**；qpdf 真实 import 它。恢复后 **32/32 全过**。该坑已写进测试断言。
+
+### 42.5 结果
+
+| 项 | 1.0.0 | 1.0.1 |
+| --- | --- | --- |
+| 安装包 | 31,719,938 B / 30.25 MiB | **19,375,119 B / 18.48 MiB** |
+| SHA-256 | `8307c7b5…6d2d92` | `39121646c9ebc791ecaf6019705d3d75cc7c1ab484303ec896c4f24df3e67147` |
+| resources | 63 文件 / 78 MB | 41 文件 / 46 MB |
+| 同链路下载耗时 | 约 4 分半 | **1 分 48 秒**（实测 curl 直连） |
+
+验证证据：
+
+- 干净目录（仅 `src-tauri/resources` 的 36 个 DLL + 三个 exe）跑 `PAYONCEPDF_SELFCHECK=1` → `payonce.selftest/1`、**32/32**、`failed=0`。
+- 更新签名用开发密钥重签：`.sig` 436 B，解码后 `version:1.0.1`、`file:PayOnce-PDF-Setup-1.0.1.exe`。
+- R2 `v1.0.1/` 上传安装包 / `SHA256SUMS.txt` / `.sig`（均带 `--remote`）；直链 HEAD 返回 `200`、`Content-Length: 19375119`、`Content-Disposition: attachment`。
+- 从官网直链完整下载后 `sha256sum` 与本地包一致。
+
+### 42.6 未解决的边界
+
+- 链路本身没有改善：国内用户仍走 SJC/SEA，单流仍是 100–250 KB/s。要真正提速需**国内对象存储镜像**（阿里云 OSS / 腾讯云 COS 默认域名可公网直读，绑自有域名需备案）或 Cloudflare Argo（付费，收益不确定）。
+- 安装包仍**无 Authenticode 签名**，Windows 会提示未知发布者；macOS 产物仍未构建。

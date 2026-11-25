@@ -1,6 +1,6 @@
 [package]
 name = "payoncepdf"
-version = "1.0.0"
+version = "1.0.1"
 description = "PayOnce PDF - local PDF toolbox, no subscription / no account / no upload"
 authors = ["PayOnce PDF"]
 edition = "2021"
