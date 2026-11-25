@@ -27,3 +27,6 @@ scripts/.dev-license-private.key
 
 *.log
 .DS_Store
+
+# wrangler 本地状态（miniflare 缓存、本地 R2 副本），不入库
+.wrangler/
