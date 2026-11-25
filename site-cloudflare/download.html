@@ -43,10 +43,21 @@
     <h1>先试用，再决定</h1>
     <p>把 PDF 的事留在本机——不上传、不订阅、不转格式。7 天完整功能，到期不自动扣费。</p>
     <div class="btns" style="justify-content:center;margin-top:24px">
-      <a class="btn primary" href="mailto:hello@payoncepdf.com?subject=申请%20PayOnce%20PDF%207%20天试用">立即开始 7 天试用 →</a>
+      <button type="button" class="btn primary" data-getbuild-open data-widget="get-build">立即开始 7 天试用 →</button>
       <a class="btn ghost" href="/pricing.html">查看买断价格</a>
     </div>
-    <p style="font-size:12px;color:#6b7488;margin:12px 0 0">装完即自动进入 7 天试用，无需账号、绑卡或激活码。下载通道正在准备中，点击后我们会通过邮件把获取方式发给你。</p>
+    <div class="getbuild" id="get-build" data-email="hello@payoncepdf.com" data-mail="收件人：hello@payoncepdf.com\n主题：申请 PayOnce PDF 7 天试用\n\n你好，我想申请 PayOnce PDF 的 7 天试用。\n平台：Windows / macOS（保留需要的一项）\n系统版本：\n用途简述（可选）：">
+      <div class="getbuild-panel" hidden>
+        <p><b style="color:var(--txt)">下载通道正在准备中</b>，安装包目前通过邮件登记发放。本机若没有配置默认邮件程序，点 mailto 是不会有任何反应的，所以这里留了三条都能走通的路。</p>
+        <ol>
+          <li>复制邮箱，用任意邮箱发送：<code>hello@payoncepdf.com</code><button type="button" class="mini" data-copy="email">复制邮箱</button></li>
+          <li>复制整封邮件（含主题与模板正文）<button type="button" class="mini" data-copy="mail">复制完整邮件</button></li>
+          <li>或 <a class="mail" href="mailto:hello@payoncepdf.com?subject=申请%20PayOnce%20PDF%207%20天试用">打开本机邮件应用</a>（仅在系统已设默认邮件程序时有效）</li>
+        </ol>
+        <p class="getbuild-status" role="status" aria-live="polite">安装包就绪后我们会回信给出下载方式与校验值。</p>
+      </div>
+    </div>
+    <p style="font-size:12px;color:#6b7488;margin:12px 0 0">装完即自动进入 7 天试用，无需账号、绑卡或激活码。下载通道正在准备中：点击按钮会在本页展开邮件登记方式，可一键复制，不依赖本机邮件程序。</p>
   </div>
 </div>
 
@@ -54,7 +65,7 @@
   <div class="wrap">
     <div class="sec-head"><h2>三步开始</h2><p>安装即自动进入 7 天试用，无需账号、无需绑卡；到期再决定要不要买断。</p></div>
     <div class="steps">
-      <div class="step-card"><div class="num">1</div><h3>获取安装包</h3><p>点击上方「立即开始 7 天试用」登记，安装包就绪后我们把下载方式发给你。安装完即自动进入 7 天全功能试用，不需要注册、绑卡或输入激活码。</p></div>
+      <div class="step-card"><div class="num">1</div><h3>获取安装包</h3><p>点击上方「立即开始 7 天试用」，页面会就地展开邮件登记方式（可一键复制邮箱或整封邮件），安装包就绪后我们把下载方式发给你。安装完即自动进入 7 天全功能试用，不需要注册、绑卡或输入激活码。</p></div>
       <div class="step-card"><div class="num">2</div><h3>下载并安装</h3><p>Windows 10/11 与 macOS 11+（Apple 芯片 / Intel）原生安装包。本地引擎与应用一起安装，不依赖云端服务。更新包有签名校验，失败保留旧版本可回滚。</p></div>
       <div class="step-card"><div class="num">3</div><h3>到期再决定</h3><p>全部 16 个工具在试用期内完整可用，文件与文件名只在本机处理，断网照常工作。到期时软件内会弹出缴费窗口，点击缴费在<a href="/pricing.html" style="color:var(--pri);border-bottom:1px dashed rgba(94,234,212,.5)">价格页</a>一次买断，输入激活码即可永久使用；已购买并激活过的用户自动转入买断模式，不再弹窗。文件不会被删除或改写。</p></div>
     </div>
@@ -119,10 +130,10 @@
     <h2>准备好在本机处理 PDF 了吗</h2>
     <p>装完即开始 7 天试用，到期再决定要不要一次买断。</p>
     <div class="btns">
-      <a class="btn primary" href="mailto:hello@payoncepdf.com?subject=申请%20PayOnce%20PDF%207%20天试用">立即开始 7 天试用</a>
+      <button type="button" class="btn primary" data-getbuild-open data-widget="get-build">立即开始 7 天试用</button>
       <a class="btn ghost" href="/pricing.html">查看买断价格</a>
     </div>
-    <p style="font-size:12px;color:#6b7488;margin:18px auto 0">下载通道正在准备中，暂通过邮件登记发放；通道开放后即可直接获取安装包。安装后一律自动进入 7 天试用，到期不会自动扣费。</p>
+    <p style="font-size:12px;color:#6b7488;margin:18px auto 0">下载通道正在准备中，暂通过邮件登记发放（点击按钮会跳到本页上方的登记区）；通道开放后即可直接获取安装包。安装后一律自动进入 7 天试用，到期不会自动扣费。</p>
   </div>
 </section>
 </main>
@@ -147,6 +158,7 @@
 </footer>
 
 <script src="/verify-sha256.js" defer></script>
+<script src="/get-build.js" defer></script>
 
 </body>
 </html>

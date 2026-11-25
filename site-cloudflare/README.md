@@ -41,6 +41,7 @@
 | `en/index.html` / `en/download.html` / `en/pricing.html` / `en/help.html` | 英文主导航四页（lang=en），镜像文案 |
 | `en/privacy.html` / `en/terms.html` | 英文独立法务页 |
 | `verify-sha256.js` | 下载页的浏览器内 SHA-256 校验（纯本地、无网络请求，符合 `script-src 'self'`） |
+| `get-build.js` | 下载页「立即开始 7 天试用」的落地交互：就地展开登记面板 + 一键复制邮箱/整封邮件；纯本地、无网络请求，按 `<html lang>` 切中英文案 |
 | `styles.css` | 12 页共享样式（深色主题、响应式、导航当前页高亮、Gumroad 占位样式、法务长文 `.doc`） |
 | `../scripts/serve-cloudflare-site.py` | 零依赖本地预览服务器（**在部署目录之外**，模拟 `_redirects` 的干净路径与 301 跳转） |
 | `wrangler.toml` | Cloudflare Pages 项目配置（`pages_build_output_dir = "."`） |
@@ -57,7 +58,7 @@
 仓库提供零依赖脚本，**默认只做检查，加 `--deploy` 才真正上线**：
 
 ```bash
-npm run site:check       # 12 页结构 / 298 条链接 / 价格 / 占位 / 法务口径 / 校验器 + 认证模式报告
+npm run site:check       # 12 页结构 / 296 条链接 / 价格 / 占位 / 法务口径 / 校验器 / 试用入口兜底 + 认证模式报告
 npm run site:deploy      # 门禁通过后执行 wrangler pages deploy
 npm run site:verify -- https://<项目名>.pages.dev    # 上线后逐页验收
 ```
@@ -107,7 +108,7 @@ npx wrangler pages deploy . --project-name payoncepdf --branch main
 |---|---|---|
 | **Gumroad 购买按钮**（pricing 页双卡主按钮，中/英两版） | 金色按钮「在 Gumroad 购买 →」，`href="#gumroad-pending"` + `aria-disabled="true"`，点击跳到同页说明框，**不是**假结账链接 | 商品创建后，把 `href="#gumroad-pending"` 替换为真实 Gumroad 商品 URL（如 `https://你.gumroad.com/l/payoncepdf`），并移除 `aria-disabled` 与说明框 |
 | **客户端缴费地址**（试用到期弹窗 / 授权面板的「点击缴费」） | `src/lib/commerce.ts` 的 `PAYMENT_URL = "https://payoncepdf.com/pricing"`，指向价格页，不伪造 Gumroad 直链 | 商品就绪后改为真实 Gumroad 结账直链；官网购买按钮同步替换 |
-| 试用申请按钮（download 页 + 各页 CTA） | `mailto:hello@payoncepdf.com` 申请试用；下载页另有真实 SHA-256 校验区（内部验证包，非公开直链） | 代码签名完成后换成真实下载直链，并同步列出全部平台哈希 |
+| 试用申请按钮（download 页） | `<button data-getbuild-open>` → 就地展开登记面板（复制邮箱 / 复制整封邮件 / 可选打开本机邮件程序），不再用会静默失败的裸 `mailto:`；下载页另有真实 SHA-256 校验区（内部验证包，非公开直链） | 代码签名完成后换成真实下载直链，面板同步改为直链 + 全部平台哈希 |
 | 「订阅上线提醒」小字 | `mailto:` 订阅 | 有正式邮件列表后替换 |
 | 移动端订阅提醒 | `mailto:` 订阅 | 同上 |
 | 联系邮箱 | `hello@payoncepdf.com` | 需确认邮箱已开通并配置 MX |

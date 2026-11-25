@@ -160,7 +160,7 @@
 | `npm run site:verify -- <URL>` | 上线后逐页验收（也可不带 URL 只查本地文件） | ❌ 否，只读 HTTP GET |
 
 - `scripts/deploy-cloudflare-site.mjs`：默认 `--check`，只有显式 `--deploy` 才调用 Wrangler。执行前强制跑 `scripts/verify-cloudflare-site.mjs` 的本地门禁，失败即中止；`--deploy` 先跑 `whoami` 精确验明认证状态，失败按当前模式给出 Token 权限排查或 `npx wrangler login` 指引。**不打开浏览器、不自动执行 login、不读写凭据文件、不 unset 或覆盖 `CLOUDFLARE_API_TOKEN`、不修改用户级环境变量、不绑定自定义域、不修改 DNS**。可用 `--project` / `--branch` / `--account-id` 覆盖默认值。
-- `scripts/verify-cloudflare-site.mjs`：本地门禁覆盖 **18 个必需文件 / 12 页**标签配平、导航「4 项 / 1 active」、298 条站内链接（含干净路径残留与死链）、canonical/hreflang、`$39 / ¥199` 单一标价、Gumroad 占位与零假直链、`_headers` 的 CSP/HSTS、`_redirects` 规则、部署目录无 `.py`/`.pyc`/`__pycache__`，以及「法务页口径 / 安装包校验值与 README 一致 / 校验脚本离线」。带 URL 时额外探测 12 个 `.html` + 9 条干净路径共 **21 条**，**跟随重定向**后校验终态 200 / `<title>` / 产品标识；Pages 的 `.html`→干净路径 308 属预期行为，重定向循环会明确报「疑似重定向循环」。线上再检查 CSP 与 HSTS 响应头。
+- `scripts/verify-cloudflare-site.mjs`：本地门禁覆盖 **19 个必需文件 / 12 页**标签配平、导航「4 项 / 1 active」、296 条站内链接（含干净路径残留与死链）、canonical/hreflang、`$39 / ¥199` 单一标价、Gumroad 占位与零假直链、`_headers` 的 CSP/HSTS、`_redirects` 规则、部署目录无 `.py`/`.pyc`/`__pycache__`，以及「法务页口径 / 安装包校验值与 README 一致 / 校验脚本离线 / 试用入口有就地兜底」。带 URL 时额外探测 12 个 `.html` + 9 条干净路径共 **21 条**，**跟随重定向**后校验终态 200 / `<title>` / 产品标识；Pages 的 `.html`→干净路径 308 属预期行为，重定向循环会明确报「疑似重定向循环」。线上再检查 CSP 与 HSTS 响应头。
 - 本地普通静态服务器不解析 `_redirects`，干净路径 404 记 **WARN** 不阻断；用 `scripts/serve-cloudflare-site.py` 起预览可全通过。
 - **本机网络注意（2026-11-24 实测）**：本机设了系统代理（`HTTPS_PROXY`），Node 22 的 `fetch` 默认直连，直接跑 `npm run site:verify -- https://payoncepdf.com` 会把 21 条路径全部报 `fetch failed`，这是本机链路问题、**不是站点故障**（同时用 `curl` 走代理全部 200）。正确命令是 `NODE_USE_ENV_PROXY=1 npm run site:verify -- https://payoncepdf.com`（Node 22.21+），验收脚本在 `fetch failed` 时会给出这条提示。`curl` 本身会读代理环境变量，无需额外设置。
 - `tests/site-contract.test.mjs` 已并入 `npm test`，因此 CI 的 `quality` job 会在任何构建/制品之前守住官网结构；同时锁住「部署脚本默认不部署、不得自动执行 login」这条安全边界。
@@ -191,8 +191,24 @@
 
 - 中英 4 个独立法务页 `/privacy`、`/terms` 及其 `/en/` 镜像上线，12 页 footer 全站挂链接；口径只写品牌名、`hello@payoncepdf.com` 与 Gumroad 收款主体，并明确标注运营主体全称 / 注册地 / 数据留存期限尚未确定，**不编造**。
 - 下载页中英版新增「安装包校验值」区块：展示当前内部验证包真实体积 `31,719,938 B` 与 SHA-256 `8307c7b5…6d2d92`；`/verify-sha256.js` 用 WebCrypto 在本机计算，文件不上传、脚本无任何网络请求，兼容站点 CSP 的 `script-src 'self'`；页面明确写「未代码签名、未对外分发」。
-- 门禁从 13 文件 / 8 页扩到 **18 文件 / 12 页 / 298 条站内链接 / 21 条 HTTP 路径**；新增契约锁住「法务页不编造主体」「校验值与 README 一致」「校验脚本离线」。
+- 门禁从 13 文件 / 8 页扩到 **19 文件 / 12 页 / 296 条站内链接 / 21 条 HTTP 路径**；新增契约锁住「法务页不编造主体」「校验值与 README 一致」「校验脚本离线」「试用入口不再裸 mailto」。
 - 新增 `docs/activation-service-plan.md`（设计稿，未实现）；真机计划补 §10 三分法。
+
+## 2026-11-25 修复：试用按钮点了没反应
+
+线上反馈「在首页点『立即开始 7 天试用』后无法进入下载页面」。用无头 Edge + CDP 复现，结论分两段：
+
+1. **首页那段是好的**：hero 区 `class="btn primary" href="/download.html"` 真实鼠标点击后落到 `https://payoncepdf.com/download`（308 → 200），`<title>` 正常，无元素遮挡、无控制台报错。
+2. **断在下载页**：页面上那个大字「立即开始 7 天试用 →」的 `href` 是 `mailto:hello@payoncepdf.com?subject=…`。系统没配默认邮件程序时，点 mailto **不会有任何反应**（无跳转、无提示、无报错），在用户看来就是"按钮坏了、进不了下载"。
+
+修复（不伪造下载直链，下载通道仍在准备中）：
+
+- 中英下载页的**两个**试用按钮都从 `<a href="mailto:">` 改成 `<button data-getbuild-open>`，点击就地展开登记面板，同时把整封邮件（收件人 / 主题 / 模板正文）写进剪贴板。
+- 面板给三条都能走通的路：复制邮箱、复制整封邮件、打开本机邮件应用（标注"仅系统已设默认邮件程序时有效"）；复制走 `navigator.clipboard`，失败回退 `document.execCommand('copy')`，全部失败时给手动复制指引，绝不静默。
+- 反馈写进 `aria-live="polite"` 区域，并维护 `aria-expanded`；英文页按 `<html lang>` 切英文提示，不出现中文。
+- 新脚本 `site-cloudflare/get-build.js` 零网络请求（站点 CSP 仍是 `script-src 'self'`）；门禁新增第 12 项「试用入口有就地兜底，不再是裸 mailto」，契约测试锁住「首页 CTA 直连下载页」「下载页不得再出现整块 mailto 主按钮」。
+
+验证：`npm test` **77/0**；`site:check` **12/12 PASS**（19 文件 / 12 页 / 296 链接）；CDP 实测中英两页按钮点击后面板展开、`aria-expanded=true`、底部 CTA 也能展开并滚入视口；授予剪贴板权限后剪贴板确为完整邮件正文（含真实换行）。
 
 ## 剩余上线决策清单（按 Grabber 先例重新评估）
 

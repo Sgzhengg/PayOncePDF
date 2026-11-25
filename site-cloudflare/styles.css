@@ -189,3 +189,21 @@ footer{border-top:1px solid var(--line);padding:28px 0;color:var(--dim);font-siz
 .doc input[type="file"]{color:var(--dim);font-size:13px;max-width:100%}
 .doc label{color:var(--txt);font-size:13.5px}
 @media(max-width:680px){.doc h2{font-size:17px}.doc p,.doc li{font-size:14px}}
+
+/* 「立即开始 7 天试用」的邮件登记落地（get-build.js）
+   原因：mailto 在未配置默认邮件程序的机器上点击无任何反应，用户会以为按钮坏了。
+   现在点击即就地展开三条获取路径，并立即复制整封邮件。 */
+button.btn{font:inherit;line-height:1.2}
+.getbuild{display:block}
+.getbuild-panel{margin:14px auto 0;max-width:600px;text-align:left;background:var(--card);border:1px solid rgba(94,234,212,.28);border-radius:14px;padding:16px 18px}
+.getbuild-panel[hidden]{display:none}
+.getbuild-panel p{margin:0 0 10px;color:var(--dim);font-size:13.5px;line-height:1.75}
+.getbuild-panel ol{margin:0 0 10px;padding-left:20px;color:var(--dim);font-size:13.5px;line-height:1.9}
+.getbuild-panel li{margin-bottom:6px}
+.getbuild-panel code{background:rgba(94,234,212,.12);color:var(--pri);border:1px solid rgba(94,234,212,.3);border-radius:6px;padding:2px 7px;font-size:13px}
+.getbuild-panel .mini{font:inherit;font-size:12.5px;color:var(--txt);background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:5px 11px;cursor:pointer;margin-left:6px}
+.getbuild-panel .mini:hover{border-color:var(--pri);color:var(--pri)}
+.getbuild-status{font-size:12.5px;color:var(--pri);margin:10px 0 0}
+.getbuild-status.bad{color:var(--bad)}
+.getbuild .btn.primary[aria-expanded="true"]{box-shadow:inset 0 0 0 2px rgba(6,37,31,.28)}
+@media(max-width:680px){.getbuild-panel{max-width:none;padding:14px}}

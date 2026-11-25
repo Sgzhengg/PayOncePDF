@@ -41,6 +41,7 @@ const REQUIRED = [
   'wrangler.toml',
   'README.md',
   'verify-sha256.js',
+  'get-build.js',
 ];
 
 // 干净路径只在 Cloudflare Pages / 专用预览脚本下生效，页面内链接必须直连 .html
@@ -234,6 +235,33 @@ export function checkLocalFiles() {
     readmeHash
       ? `README=${readmeHash.slice(0, 12)}… / 页面=${pageHashes.map((h) => (h || 'MISS').slice(0, 12)).join(',')} / 脚本离线=${jsOffline}`
       : 'README 未找到当前发行包哈希');
+
+  // 2026-11-25：下载页「立即开始 7 天试用」原先直接是 mailto 链接，本机没配默认邮件程序时
+  // 点击毫无反应（线上实测复现），用户以为进不了下载页。现在必须是 button + 就地展开的登记面板，
+  // 且复制逻辑走 clipboard API、失败回退 execCommand，全程不联网。
+  const buildJs = fs.existsSync(path.join(SITE, 'get-build.js')) ? read('get-build.js') : '';
+  const dlPages = ['download.html', 'en/download.html'].map((p) => ({
+    p,
+    html: fs.existsSync(path.join(SITE, p)) ? read(p) : '',
+  }));
+  const entryShapeOk = dlPages.every(({ html }) =>
+    /<button[^>]*class="btn primary"[^>]*data-getbuild-open/.test(html)
+    && /class="getbuild" id="get-build"/.test(html)
+    && /data-copy="email"/.test(html)
+    && /data-copy="mail"/.test(html)
+    && /src="\/get-build\.js"/.test(html)
+    && /aria-live="polite"/.test(html)
+    && !/<a[^>]*class="btn primary"[^>]*href="mailto:/.test(html));
+  const buildJsOk = Boolean(buildJs)
+    && /navigator\.clipboard/.test(buildJs)
+    && /execCommand\('copy'\)/.test(buildJs)
+    && /aria-expanded/.test(buildJs)
+    && !/\b(?:fetch|XMLHttpRequest|WebSocket|sendBeacon|importScripts)\s*\(/.test(buildJs);
+  add('试用入口有就地兜底，不再是裸 mailto',
+    entryShapeOk && buildJsOk,
+    entryShapeOk && buildJsOk
+      ? '中英下载页均为 button + 展开面板；脚本用 clipboard API，失败回退 execCommand，零网络请求'
+      : `按钮/面板结构=${entryShapeOk} / get-build.js=${buildJsOk}`);
 
   return { results, blockers, warnings, stats: { pages: PAGES.length, links: linkCount } };
 }

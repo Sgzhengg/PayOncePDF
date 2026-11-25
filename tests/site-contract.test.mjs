@@ -163,3 +163,46 @@ test('线上验收在代理环境下给出可操作提示，不把本机直连�
   assert.match(src, /fetch failed/, '提示只在 fetch failed 时触发');
   assert.match(src, /HTTPS_PROXY/, '须检测系统代理环境变量');
 });
+
+test('首页试用 CTA 指向下载页，下载页试用入口不再是裸 mailto', () => {
+  // 症状回归：用户反馈「首页点立即开始 7 天试用后无法进入下载页面」。
+  // 真因是下载页主按钮 href="mailto:"，未配默认邮件程序的机器点了毫无反应。
+  const home = [
+    ['index.html', '/download.html'],
+    ['en/index.html', '/en/download.html'],
+  ];
+  for (const [p, target] of home) {
+    const s = read(`site-cloudflare/${p}`);
+    assert.ok(
+      s.includes(`class="btn primary" href="${target}"`),
+      `${p} 的主 CTA 必须直连下载页 ${target}`
+    );
+  }
+  for (const p of ['download.html', 'en/download.html']) {
+    const s = read(`site-cloudflare/${p}`);
+    assert.match(
+      s,
+      /<button type="button" class="btn primary" data-getbuild-open data-widget="get-build">/,
+      `${p} 的试用按钮必须是 button（mailto 在无邮件程序时会静默失败）`
+    );
+    assert.match(s, /class="getbuild" id="get-build"/, `${p} 必须有就地展开的登记面板`);
+    assert.match(s, /data-copy="email"/, `${p} 必须提供一键复制邮箱`);
+    assert.match(s, /data-copy="mail"/, `${p} 必须提供一键复制整封邮件`);
+    assert.match(s, /aria-live="polite"/, `${p} 的复制反馈必须可被读屏播报`);
+    assert.match(s, /src="\/get-build\.js"/, `${p} 必须加载登记脚本`);
+    assert.doesNotMatch(
+      s,
+      /<a[^>]*class="btn primary"[^>]*href="mailto:/,
+      `${p} 不得再出现整块 mailto 主按钮`
+    );
+  }
+  const js = read('site-cloudflare/get-build.js');
+  assert.match(js, /navigator\.clipboard/, '优先用 clipboard API');
+  assert.match(js, /execCommand\('copy'\)/, 'clipboard 不可用时要能回退');
+  assert.match(js, /aria-expanded/, '必须维护展开态，避免读屏与视觉不一致');
+  assert.doesNotMatch(
+    js,
+    /\b(?:fetch|XMLHttpRequest|WebSocket|sendBeacon|importScripts)\s*\(/,
+    '登记脚本不得发起任何网络请求'
+  );
+});

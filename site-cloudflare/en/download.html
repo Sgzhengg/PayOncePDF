@@ -43,10 +43,21 @@
     <h1>Try it first, then decide</h1>
     <p>Keep PDF work on your machine — no upload, no subscription, no format conversion. Full features for 7 days, no automatic charge.</p>
     <div class="btns" style="justify-content:center;margin-top:24px">
-      <a class="btn primary" href="mailto:hello@payoncepdf.com?subject=PayOnce%20PDF%207-day%20trial%20request">Start 7-day trial →</a>
+      <button type="button" class="btn primary" data-getbuild-open data-widget="get-build">Start 7-day trial →</button>
       <a class="btn ghost" href="/en/pricing.html">See one-time price</a>
     </div>
-    <p style="font-size:12px;color:#6b7488;margin:12px 0 0">The install starts a 7-day trial automatically — no account, card or key. The download channel is in preparation; clicking sends us your request and we'll reply with the details.</p>
+    <div class="getbuild" id="get-build" data-email="hello@payoncepdf.com" data-mail="To: hello@payoncepdf.com\nSubject: PayOnce PDF 7-day trial request\n\nHi, I would like to request the 7-day trial of PayOnce PDF.\nPlatform: Windows / macOS (keep one)\nOS version://nWhat I need it for (optional):">
+      <div class="getbuild-panel" hidden>
+        <p><b style="color:var(--txt)">The download channel is in preparation</b> &mdash; the installer is currently released by email registration. If this machine has no default mail app, a mailto link does nothing at all, so here are three routes that all work.</p>
+        <ol>
+          <li>Copy the address and send from any mailbox: <code>hello@payoncepdf.com</code><button type="button" class="mini" data-copy="email">Copy email</button></li>
+          <li>Copy the whole email (subject and template body)<button type="button" class="mini" data-copy="mail">Copy full email</button></li>
+          <li>Or <a class="mail" href="mailto:hello@payoncepdf.com?subject=PayOnce%20PDF%207-day%20trial%20request">open your local mail app</a> (only works when a default mail app is configured)</li>
+        </ol>
+        <p class="getbuild-status" role="status" aria-live="polite">Once the installer is ready we reply with the download details and checksums.</p>
+      </div>
+    </div>
+    <p style="font-size:12px;color:#6b7488;margin:12px 0 0">The install starts a 7-day trial automatically &mdash; no account, card or key. The download channel is in preparation: the button expands the email registration right here, with one-click copying that does not depend on your machine having a mail app.</p>
   </div>
 </div>
 
@@ -54,7 +65,7 @@
   <div class="wrap">
     <div class="sec-head"><h2>Get started in three steps</h2><p>Installing starts a 7-day trial automatically — no account, no card. Decide about the buyout at expiry.</p></div>
     <div class="steps">
-      <div class="step-card"><div class="num">1</div><h3>Get the installer</h3><p>Click "Start 7-day trial" above to register; we'll send the download link once the installer ships. Installing it starts the full 7-day trial automatically — no sign-up, card or activation key needed.</p></div>
+      <div class="step-card"><div class="num">1</div><h3>Get the installer</h3><p>Click "Start 7-day trial" above and the page expands the email registration in place — copy the address or the whole email in one click. We send the download link once the installer ships. Installing it starts the full 7-day trial automatically — no sign-up, card or activation key needed.</p></div>
       <div class="step-card"><div class="num">2</div><h3>Download and install</h3><p>Native installers for Windows 10/11 and macOS 11+ (Apple Silicon and Intel). The local engine ships with the app — no cloud dependency. Updates are signature-verified, with the previous version kept if verification fails.</p></div>
       <div class="step-card"><div class="num">3</div><h3>Decide at expiry</h3><p>All 16 tools are fully unlocked during the trial — no feature gating, no daily caps, no file-size limits, and files stay on your machine. At expiry an in-app payment window appears: click to pay, <a href="/en/pricing.html" style="color:var(--pri);border-bottom:1px dashed rgba(94,234,212,.5)">buy once</a>, enter the key and use it forever. Buyers who already activated switch to the lifetime buyout automatically, with no window. No file is deleted or modified.</p></div>
     </div>
@@ -119,10 +130,10 @@
     <h2>Ready to handle PDFs locally</h2>
     <p>Installing starts a 7-day trial; decide about the buyout at expiry.</p>
     <div class="btns">
-      <a class="btn primary" href="mailto:hello@payoncepdf.com?subject=PayOnce%20PDF%207-day%20trial%20request">Start 7-day trial</a>
+      <button type="button" class="btn primary" data-getbuild-open data-widget="get-build">Start 7-day trial</button>
       <a class="btn ghost" href="/en/pricing.html">See one-time price</a>
     </div>
-    <p style="font-size:12px;color:#6b7488;margin:18px auto 0">The download channel is in preparation; register by email for now and you'll be able to get the installer directly once it opens. Every install starts a 7-day trial, with no automatic charge at expiry.</p>
+    <p style="font-size:12px;color:#6b7488;margin:18px auto 0">The download channel is in preparation &mdash; the button jumps to the registration block above; register by email for now and you'll be able to get the installer directly once it opens. Every install starts a 7-day trial, with no automatic charge at expiry.</p>
   </div>
 </section>
 </main>
@@ -147,6 +158,7 @@
 </footer>
 
 <script src="/verify-sha256.js" defer></script>
+<script src="/get-build.js" defer></script>
 
 </body>
 </html>
